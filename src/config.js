@@ -12,7 +12,8 @@ for (const key of required) {
 }
 
 export const config = {
-  port: Number(process.env.BACKEND_PORT || 4000),
+  // Cloud hosts such as Render provide PORT. BACKEND_PORT remains available for local development.
+  port: Number(process.env.PORT || process.env.BACKEND_PORT || 4000),
   mongoUri: process.env.MONGODB_URI,
   jwtSecret: process.env.JWT_SECRET,
   frontendOrigins: (process.env.FRONTEND_ORIGIN || 'http://localhost:3000').split(',').map((origin) => origin.trim()).filter(Boolean),
