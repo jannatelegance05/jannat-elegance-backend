@@ -8,7 +8,7 @@ import { requireAuth, requireSameOrigin } from '../auth.js';
 const router = Router();
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const idsInput = z.object({ productIds: z.array(objectId).max(50).refine((ids) => new Set(ids).size === ids.length, 'Duplicate products are not allowed') }).strict();
-const formatProduct = (product) => ({ id: String(product._id), name: product.name, description: product.description, category: product.categoryId?.name || '', categoryId: String(product.categoryId?._id || product.categoryId), price: product.price, discount: product.discount || 0, discountType: product.discountType || 'percentage', isOnSale: Boolean(product.isOnSale), salePrice: calculateSalePrice(product), sizes: product.sizes.map((size) => ({ size: size.size, stock: size.stock })), imageUrls: product.imageUrls });
+const formatProduct = (product) => ({ id: String(product._id), name: product.name, description: product.description, category: product.categoryId?.name || '', categoryId: String(product.categoryId?._id || product.categoryId), price: product.price, discount: product.discount || 0, discountType: product.discountType || 'percentage', isOnSale: Boolean(product.isOnSale), salePrice: calculateSalePrice(product), sizes: product.sizes.map((size) => ({ size: size.size, stock: size.stock, ...(Number.isFinite(size.price) ? { price: size.price } : {}) })), imageUrls: product.imageUrls });
 
 async function wishlistProducts(userId) {
   const saved = await WishlistItem.find({ userId }).sort({ createdAt: -1 }).lean();

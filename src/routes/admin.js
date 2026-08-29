@@ -30,8 +30,17 @@ router.patch('/orders/:id', requireSameOrigin, async (request, response, next) =
   if (result.notificationRequired && input.sendEmail) { try { await sendOrderStatusEmail(result.order); } catch { notificationFailed = true; console.error('Order status email failed'); } }
   response.json({ success: true, order: formatOrder(result.order.toObject()), notificationFailed, unchanged: !result.changed });
 } catch (error) { if (['OrderNotFound'].includes(error.message)) return response.status(404).json({ success: false, error: 'Order not found' }); if (error.message === 'InvalidStatusTransition') return response.status(400).json({ success: false, error: 'Select a valid order status' }); next(error); } });
+router.delete('/orders/:id', requireSameOrigin, async (request, response, next) => { try {
+  if (!mongoose.isValidObjectId(request.params.id)) return response.status(404).json({ success: false, error: 'Order not found' });
+  const order = await Order.findById(request.params.id);
+  if (!order) return response.status(404).json({ success: false, error: 'Order not found' });
+  if (normalizeStatus(order.status) !== 'cancelled') return response.status(409).json({ success: false, error: 'Cancel the order before deleting its history' });
+  await Order.deleteOne({ _id: order._id });
+  await audit(request.user.id, 'delete', 'order', String(order._id), { customerEmail: order.customerEmail, total: order.total, status: order.status });
+  response.json({ success: true });
+} catch (error) { next(error); } });
 router.get('/dashboard', async (_request, response, next) => { try {
-  const now = new Date(); const today = dayStart(now); const month = new Date(now.getFullYear(), now.getMonth(), 1); const paid = { paymentStatus: 'paid' };
+  const now = new Date(); const today = dayStart(now); const month = new Date(now.getFullYear(), now.getMonth(), 1); const paid = { paymentStatus: 'paid', status: { $ne: 'cancelled' } };
   const [todayData, monthData, productCount, lowStock, recentOrders] = await Promise.all([
     Order.aggregate([{ $match: { ...paid, createdAt: { $gte: today } } }, { $group: { _id: null, orders: { $sum: 1 }, revenue: { $sum: '$total' } } }]),
     Order.aggregate([{ $match: { ...paid, createdAt: { $gte: month } } }, { $group: { _id: null, orders: { $sum: 1 }, revenue: { $sum: '$total' } } }]), Product.countDocuments({ isActive: true }),
@@ -40,7 +49,7 @@ router.get('/dashboard', async (_request, response, next) => { try {
   response.json({ success: true, summary: { today: todayData[0] || { orders: 0, revenue: 0 }, month: monthData[0] || { orders: 0, revenue: 0 }, productCount, lowStockCount: lowStock.length }, lowStock, recentOrders: recentOrders.map(formatOrder) });
 } catch (error) { next(error); } });
 router.get('/analytics', async (request, response, next) => { try {
-  const range = ['daily', 'weekly', 'monthly'].includes(request.query.range) ? request.query.range : 'daily'; const now = new Date(); const from = new Date(now); from.setDate(now.getDate() - (range === 'daily' ? 30 : range === 'weekly' ? 84 : 365)); const dateFormat = range === 'monthly' ? '%Y-%m' : '%Y-%m-%d'; const paid = { paymentStatus: 'paid', createdAt: { $gte: from } };
+  const range = ['daily', 'weekly', 'monthly'].includes(request.query.range) ? request.query.range : 'daily'; const now = new Date(); const from = new Date(now); from.setDate(now.getDate() - (range === 'daily' ? 30 : range === 'weekly' ? 84 : 365)); const dateFormat = range === 'monthly' ? '%Y-%m' : '%Y-%m-%d'; const paid = { paymentStatus: 'paid', status: { $ne: 'cancelled' }, createdAt: { $gte: from } };
   const [revenue, bestSellers, categorySales, statusDistribution] = await Promise.all([
     Order.aggregate([{ $match: paid }, { $group: { _id: { $dateToString: { format: dateFormat, date: '$createdAt' } }, revenue: { $sum: '$total' }, orders: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
     Order.aggregate([{ $match: paid }, { $unwind: '$items' }, { $group: { _id: '$items.productId', name: { $first: '$items.name' }, sold: { $sum: '$items.quantity' }, revenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } } } }, { $sort: { sold: -1 } }, { $limit: 10 }]),
