@@ -15,6 +15,7 @@ const productInput = z.object({
   discount: z.number().finite().nonnegative().max(10000000).default(0),
   discountType: z.enum(['percentage', 'flat']).default('percentage'),
   isOnSale: z.boolean().default(false),
+  isFeatured: z.boolean().default(false),
   isActive: z.boolean().default(true),
   status: z.enum(['draft', 'published']).default('draft'),
   sizes: z.array(z.object({ size: z.enum(sizeValues), stock: z.number().int().min(0).max(100000), price: z.number().finite().nonnegative().max(10000000).optional() })).min(1).max(sizeValues.length)
@@ -45,27 +46,53 @@ const productValidationMessage = (result) => {
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const formatProduct = (product) => { const salePrice = product.isOnSale ? Math.max(0, product.price - (product.discountType === 'percentage' ? product.price * product.discount / 100 : product.discount)) : product.price; return { ...product, id: String(product._id), category: product.categoryId?.name || '', categoryId: product.categoryId?._id ? String(product.categoryId._id) : String(product.categoryId), salePrice: Math.round(salePrice * 100) / 100 }; };
 const audit = (adminId, action, entityType, entityId, details) => AdminActivityLog.create({ adminId, action, entityType, entityId, details });
+const validMoney = (value) => typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
+const categoryList = async () => {
+  const [categories, metadata] = await Promise.all([
+    Category.find().sort({ name: 1 }).lean(),
+    Product.aggregate([
+      { $match: { isActive: true, status: 'published' } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: '$categoryId', imageUrl: { $first: { $arrayElemAt: ['$imageUrls', 0] } }, productCount: { $sum: 1 } } },
+    ]),
+  ]);
+  const byId = new Map(metadata.map((item) => [String(item._id), item]));
+  return categories.map((category) => ({ ...category, productCount: byId.get(String(category._id))?.productCount || 0, imageUrl: byId.get(String(category._id))?.imageUrl || '' }));
+};
 
 router.get('/', async (request, response, next) => {
   try {
     const page = Math.max(1, Number(request.query.page) || 1);
     const limit = Math.min(48, Math.max(1, Number(request.query.limit) || 24));
     const query = { isActive: true, status: 'published' };
-    if (typeof request.query.category === 'string' && mongoose.isValidObjectId(request.query.category)) query.categoryId = request.query.category;
+    if (typeof request.query.category === 'string' && request.query.category.trim()) {
+      if (mongoose.isValidObjectId(request.query.category)) query.categoryId = request.query.category;
+      else {
+        const category = await Category.findOne({ name: new RegExp(`^${escapeRegex(request.query.category.trim())}$`, 'i') }).select('_id').lean();
+        if (!category) return response.json({ success: true, products: [], page, pages: 1, total: 0 });
+        query.categoryId = category._id;
+      }
+    }
     if (typeof request.query.search === 'string' && request.query.search.trim()) {
       const term = { $regex: escapeRegex(request.query.search.trim()), $options: 'i' };
-      query.$or = [{ name: term }, { description: term }];
+      const categoryIds = await Category.find({ name: term }).distinct('_id');
+      query.$or = [{ name: term }, { description: term }, ...(categoryIds.length ? [{ categoryId: { $in: categoryIds } }] : [])];
     }
-    if (typeof request.query.size === 'string' && sizeValues.includes(request.query.size)) query.sizes = { $elemMatch: { size: request.query.size, stock: { $gt: 0 } } };
+    const requestedSizes = typeof request.query.size === 'string' ? request.query.size.split(',').filter((size) => sizeValues.includes(size)) : [];
+    if (requestedSizes.length) query.sizes = { $elemMatch: { size: { $in: requestedSizes }, stock: { $gt: 0 } } };
+    if (request.query.featured === 'true') query.isFeatured = true;
+    const minPrice = validMoney(request.query.minPrice); const maxPrice = validMoney(request.query.maxPrice);
+    if (minPrice !== null || maxPrice !== null) query.price = { ...(minPrice !== null ? { $gte: minPrice } : {}), ...(maxPrice !== null ? { $lte: maxPrice } : {}) };
+    const sort = request.query.sort === 'price_asc' ? { price: 1, createdAt: -1 } : request.query.sort === 'price_desc' ? { price: -1, createdAt: -1 } : { createdAt: -1 };
     const [items, total] = await Promise.all([
-      Product.find(query).populate('categoryId', 'name').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Product.find(query).populate('categoryId', 'name').sort(sort).skip((page - 1) * limit).limit(limit).lean(),
       Product.countDocuments(query),
     ]);
     response.json({ success: true, products: items.map(formatProduct), page, pages: Math.max(1, Math.ceil(total / limit)), total });
   } catch (error) { next(error); }
 });
 
-router.get('/categories/list', async (_request, response, next) => { try { response.json({ success: true, categories: await Category.find().sort({ name: 1 }).lean() }); } catch (error) { next(error); } });
+router.get('/categories/list', async (_request, response, next) => { try { response.json({ success: true, categories: await categoryList() }); } catch (error) { next(error); } });
 
 router.get('/:id', async (request, response, next) => {
   try {
@@ -78,7 +105,7 @@ router.get('/:id', async (request, response, next) => {
 
 export const adminProductRoutes = Router();
 adminProductRoutes.use(requireAuth, requireAdmin, requireSameOrigin);
-adminProductRoutes.get('/categories', async (_request, response, next) => { try { response.json({ success: true, categories: await Category.find().sort({ name: 1 }).lean() }); } catch (error) { next(error); } });
+adminProductRoutes.get('/categories', async (_request, response, next) => { try { response.json({ success: true, categories: await categoryList() }); } catch (error) { next(error); } });
 adminProductRoutes.post('/categories', async (request, response, next) => {
   try {
     const { name } = z.object({ name: z.string().trim().min(2).max(80) }).strict().parse(request.body);
