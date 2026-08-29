@@ -24,6 +24,24 @@ const productInput = z.object({
   metaDescription: z.string().trim().max(320).optional().or(z.literal('')),
 }).strict();
 
+const productValidationMessage = (result) => {
+  if (result.success) return null;
+  const field = String(result.error.issues[0]?.path?.[0] || 'product');
+  const messages = {
+    name: 'Product name must be between 2 and 160 characters.',
+    description: 'Description must be between 10 and 5000 characters.',
+    categoryId: 'Select a valid category.',
+    price: 'Enter a valid product price.',
+    discount: 'Enter a valid discount amount.',
+    discountType: 'Select a valid discount type.',
+    sizes: 'Select at least one size and enter a valid whole-number stock quantity.',
+    imageUrls: 'Upload between 1 and 10 valid product images.',
+    metaTitle: 'Meta title is too long.',
+    metaDescription: 'Meta description is too long.',
+  };
+  return messages[field] || 'Product details are invalid.';
+};
+
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const formatProduct = (product) => { const salePrice = product.isOnSale ? Math.max(0, product.price - (product.discountType === 'percentage' ? product.price * product.discount / 100 : product.discount)) : product.price; return { ...product, id: String(product._id), category: product.categoryId?.name || '', categoryId: product.categoryId?._id ? String(product.categoryId._id) : String(product.categoryId), salePrice: Math.round(salePrice * 100) / 100 }; };
 const audit = (adminId, action, entityType, entityId, details) => AdminActivityLog.create({ adminId, action, entityType, entityId, details });
@@ -93,7 +111,9 @@ adminProductRoutes.get('/products', async (request, response, next) => {
 adminProductRoutes.get('/products/:id', async (request, response, next) => { try { if (!mongoose.isValidObjectId(request.params.id)) return response.status(404).json({ success: false, error: 'Product not found' }); const product = await Product.findById(request.params.id).populate('categoryId', 'name').lean(); if (!product) return response.status(404).json({ success: false, error: 'Product not found' }); response.json({ success: true, product: formatProduct(product) }); } catch (error) { next(error); } });
 adminProductRoutes.post('/products', async (request, response, next) => {
   try {
-    const input = productInput.parse(request.body);
+    const parsed = productInput.safeParse(request.body);
+    if (!parsed.success) return response.status(400).json({ success: false, error: productValidationMessage(parsed) });
+    const input = parsed.data;
     if (!await Category.exists({ _id: input.categoryId })) return response.status(400).json({ success: false, error: 'Category does not exist' });
     const product = await Product.create(input);
     await audit(request.user.id, 'create', 'product', String(product._id), { name: product.name });
@@ -103,7 +123,9 @@ adminProductRoutes.post('/products', async (request, response, next) => {
 adminProductRoutes.patch('/products/:id', async (request, response, next) => {
   try {
     if (!mongoose.isValidObjectId(request.params.id)) return response.status(404).json({ success: false, error: 'Product not found' });
-    const input = productInput.partial().parse(request.body);
+    const parsed = productInput.partial().safeParse(request.body);
+    if (!parsed.success) return response.status(400).json({ success: false, error: productValidationMessage(parsed) });
+    const input = parsed.data;
     if (input.categoryId && !await Category.exists({ _id: input.categoryId })) return response.status(400).json({ success: false, error: 'Category does not exist' });
     const product = await Product.findByIdAndUpdate(request.params.id, { $set: input }, { new: true, runValidators: true });
     if (!product) return response.status(404).json({ success: false, error: 'Product not found' });
