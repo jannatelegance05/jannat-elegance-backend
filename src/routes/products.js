@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
-import { AdminActivityLog, Category, Product } from '../models.js';
+import { AdminActivityLog, CartItem, Category, Product } from '../models.js';
 import { requireAdmin, requireAuth, requireSameOrigin } from '../auth.js';
 
 const router = Router();
@@ -136,9 +136,10 @@ adminProductRoutes.patch('/products/:id', async (request, response, next) => {
 adminProductRoutes.delete('/products/:id', async (request, response, next) => {
   try {
     if (!mongoose.isValidObjectId(request.params.id)) return response.status(404).json({ success: false, error: 'Product not found' });
-    const product = await Product.findByIdAndUpdate(request.params.id, { $set: { isActive: false } }, { new: true });
+    const product = await Product.findByIdAndDelete(request.params.id);
     if (!product) return response.status(404).json({ success: false, error: 'Product not found' });
-    await audit(request.user.id, 'soft_delete', 'product', String(product._id), { name: product.name });
+    const removedFromCarts = await CartItem.deleteMany({ productId: product._id });
+    await audit(request.user.id, 'delete', 'product', String(product._id), { name: product.name, removedFromCarts: removedFromCarts.deletedCount });
     response.json({ success: true });
   } catch (error) { next(error); }
 });
