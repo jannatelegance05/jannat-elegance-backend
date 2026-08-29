@@ -7,6 +7,7 @@ import { requireAdmin, requireAuth, requireSameOrigin } from '../auth.js';
 const router = Router();
 const sizeValues = ['S', 'M', 'L', 'XL', 'XXL'];
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
+const categoryImageUrl = z.string().trim().max(2048).refine((value) => /^https:\/\//i.test(value) || /^\/images\//.test(value), 'Use a secure hosted image URL').optional().or(z.literal(''));
 const productInput = z.object({
   name: z.string().trim().min(2).max(160),
   description: z.string().trim().min(10).max(5000),
@@ -57,7 +58,7 @@ const categoryList = async () => {
     ]),
   ]);
   const byId = new Map(metadata.map((item) => [String(item._id), item]));
-  return categories.map((category) => ({ ...category, productCount: byId.get(String(category._id))?.productCount || 0, imageUrl: byId.get(String(category._id))?.imageUrl || '' }));
+  return categories.map((category) => ({ ...category, productCount: byId.get(String(category._id))?.productCount || 0, imageUrl: category.imageUrl || byId.get(String(category._id))?.imageUrl || '' }));
 };
 
 router.get('/', async (request, response, next) => {
@@ -108,10 +109,20 @@ adminProductRoutes.use(requireAuth, requireAdmin, requireSameOrigin);
 adminProductRoutes.get('/categories', async (_request, response, next) => { try { response.json({ success: true, categories: await categoryList() }); } catch (error) { next(error); } });
 adminProductRoutes.post('/categories', async (request, response, next) => {
   try {
-    const { name } = z.object({ name: z.string().trim().min(2).max(80) }).strict().parse(request.body);
-    const category = await Category.create({ name });
+    const { name, imageUrl } = z.object({ name: z.string().trim().min(2).max(80), imageUrl: categoryImageUrl }).strict().parse(request.body);
+    const category = await Category.create({ name, ...(imageUrl ? { imageUrl } : {}) });
     await audit(request.user.id, 'create', 'category', String(category._id), { name });
     response.status(201).json({ success: true, category });
+  } catch (error) { if (error?.code === 11000) return response.status(409).json({ success: false, error: 'Category already exists' }); next(error); }
+});
+adminProductRoutes.patch('/categories/:id', async (request, response, next) => {
+  try {
+    if (!mongoose.isValidObjectId(request.params.id)) return response.status(404).json({ success: false, error: 'Category not found' });
+    const input = z.object({ name: z.string().trim().min(2).max(80).optional(), imageUrl: categoryImageUrl }).strict().parse(request.body);
+    const category = await Category.findByIdAndUpdate(request.params.id, { $set: input }, { new: true, runValidators: true });
+    if (!category) return response.status(404).json({ success: false, error: 'Category not found' });
+    await audit(request.user.id, 'update', 'category', String(category._id), Object.keys(input));
+    response.json({ success: true, category });
   } catch (error) { if (error?.code === 11000) return response.status(409).json({ success: false, error: 'Category already exists' }); next(error); }
 });
 adminProductRoutes.delete('/categories/:id', async (request, response, next) => {
@@ -131,6 +142,7 @@ adminProductRoutes.get('/products', async (request, response, next) => {
     const page = Math.max(1, Number(request.query.page) || 1); const limit = Math.min(50, Math.max(1, Number(request.query.limit) || 20)); const query = {};
     if (typeof request.query.category === 'string' && mongoose.isValidObjectId(request.query.category)) query.categoryId = request.query.category;
     if (typeof request.query.search === 'string' && request.query.search.trim()) query.name = { $regex: escapeRegex(request.query.search.trim()), $options: 'i' };
+    if (request.query.featured === 'true') query.isFeatured = true;
     const [items, total] = await Promise.all([Product.find(query).populate('categoryId', 'name').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), Product.countDocuments(query)]);
     response.json({ success: true, products: items.map(formatProduct), page, pages: Math.max(1, Math.ceil(total / limit)), total });
   } catch (error) { next(error); }
