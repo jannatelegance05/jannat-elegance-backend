@@ -44,5 +44,10 @@ app.use('/api/products', productRoutes);
 app.use('/api/admin', adminProductRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin/uploads', uploadRoutes);
-app.use((error, _request, response, _next) => { console.error(error?.name || 'Unhandled server error'); const status = error?.name === 'ZodError' ? 400 : 500; response.status(status).json({ success: false, error: status === 400 ? 'Invalid request data' : 'Something went wrong' }); });
+app.use((error, _request, response, _next) => {
+  const isInvalidJson = error instanceof SyntaxError && error.status === 400 && Object.prototype.hasOwnProperty.call(error, 'body');
+  console.error(error?.name || 'Unhandled server error');
+  const status = error?.name === 'ZodError' || isInvalidJson ? 400 : 500;
+  response.status(status).json({ success: false, error: status === 400 ? 'Invalid request data' : 'Something went wrong' });
+});
 app.listen(config.port, () => console.log(`Jannat API listening on ${config.port}`));
