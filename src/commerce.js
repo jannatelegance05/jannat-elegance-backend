@@ -1,7 +1,14 @@
 import mongoose from 'mongoose';
 import { Order, Product } from './models.js';
 
-export const calculateSalePrice = (product) => Math.round(Math.max(0, product.price - (product.isOnSale ? product.discountType === 'percentage' ? product.price * product.discount / 100 : product.discount : 0)) * 100) / 100;
+const priceForSize = (product, size) => {
+  const selectedSize = typeof size === 'string' ? product.sizes?.find((item) => item.size === size) : size;
+  return Number.isFinite(selectedSize?.price) ? selectedSize.price : product.price;
+};
+export const calculateSalePrice = (product, size) => {
+  const basePrice = priceForSize(product, size);
+  return Math.round(Math.max(0, basePrice - (product.isOnSale ? product.discountType === 'percentage' ? basePrice * product.discount / 100 : product.discount : 0)) * 100) / 100;
+};
 export const uniqueCartLineCount = (lines) => new Set(lines.map((line) => `${line.id}:${line.size}`)).size;
 export const uniqueWishlistCount = (products) => new Set(products.map((product) => product.id)).size;
 
@@ -12,7 +19,7 @@ export function makeOrderItems(products, lines) {
     if (!product) throw new Error('UnavailableProduct');
     const stock = product.sizes.find((entry) => entry.size === line.size)?.stock || 0;
     if (stock < line.quantity) throw new Error('InsufficientStock');
-    return { productId: product._id, name: product.name, price: calculateSalePrice(product), quantity: line.quantity, size: line.size, image: product.imageUrls[0] || '' };
+    return { productId: product._id, name: product.name, price: calculateSalePrice(product, line.size), quantity: line.quantity, size: line.size, image: product.imageUrls[0] || '' };
   });
 }
 

@@ -6,6 +6,11 @@ import { isSafeTrackingUrl, isValidStatusTransition, normalizeStatus } from '../
 
 const product = { _id: '0123456789abcdef01234567', name: 'Test Suit', price: 2000, discount: 25, discountType: 'percentage', isOnSale: true, imageUrls: [], sizes: [{ size: 'M', stock: 2 }] };
 test('sale price is calculated server-side', () => assert.equal(calculateSalePrice(product), 1500));
+test('selected size price is used for cart and order totals', () => {
+  const sizedProduct = { ...product, sizes: [{ size: 'M', stock: 2, price: 2400 }] };
+  assert.equal(calculateSalePrice(sizedProduct, 'M'), 1800);
+  assert.equal(makeOrderItems([sizedProduct], [{ id: String(sizedProduct._id), size: 'M', quantity: 1 }])[0].price, 1800);
+});
 test('flat sale discount never becomes negative', () => assert.equal(calculateSalePrice({ ...product, price: 100, discount: 500, discountType: 'flat' }), 0));
 test('cart badge counts product-size lines rather than quantities', () => assert.equal(uniqueCartLineCount([{ id: 'a', size: 'M', quantity: 5 }, { id: 'a', size: 'L', quantity: 1 }, { id: 'a', size: 'M', quantity: 1 }]), 2));
 test('wishlist badge counts unique products', () => assert.equal(uniqueWishlistCount([{ id: 'a' }, { id: 'b' }, { id: 'b' }]), 2));

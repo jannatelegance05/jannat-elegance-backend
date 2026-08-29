@@ -17,7 +17,7 @@ const productInput = z.object({
   isOnSale: z.boolean().default(false),
   isActive: z.boolean().default(true),
   status: z.enum(['draft', 'published']).default('draft'),
-  sizes: z.array(z.object({ size: z.enum(sizeValues), stock: z.number().int().min(0).max(100000) })).min(1).max(sizeValues.length)
+  sizes: z.array(z.object({ size: z.enum(sizeValues), stock: z.number().int().min(0).max(100000), price: z.number().finite().nonnegative().max(10000000).optional() })).min(1).max(sizeValues.length)
     .refine((items) => new Set(items.map((item) => item.size)).size === items.length, 'Duplicate sizes are not allowed'),
   imageUrls: z.array(z.string().url()).min(1).max(10),
   metaTitle: z.string().trim().max(160).optional().or(z.literal('')),

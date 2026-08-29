@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { CartItem, Product } from '../models.js';
 import { requireAuth, requireSameOrigin } from '../auth.js';
+import { calculateSalePrice } from '../commerce.js';
 
 const router = Router();
 const cartLine = z.object({ id: z.string().regex(/^[a-f\d]{24}$/i), size: z.enum(['S', 'M', 'L', 'XL', 'XXL']), quantity: z.number().int().min(1).max(10) });
@@ -17,8 +18,7 @@ router.post('/', requireSameOrigin, async (request, response, next) => {
     const documents = cart.map((line) => {
       const product = productsById.get(line.id); const selectedSize = product.sizes.find((item) => item.size === line.size);
       if (!selectedSize || selectedSize.stock < line.quantity) throw new Error('Requested size is unavailable');
-      const salePrice = product.isOnSale ? Math.max(0, product.price - (product.discountType === 'percentage' ? product.price * product.discount / 100 : product.discount)) : product.price;
-      return { userId: request.user.id, productId: line.id, name: product.name, price: Math.round(salePrice * 100) / 100, category: product.categoryId?.name || '', size: line.size, image: product.imageUrls[0] || '', quantity: line.quantity };
+      return { userId: request.user.id, productId: line.id, name: product.name, price: calculateSalePrice(product, line.size), category: product.categoryId?.name || '', size: line.size, image: product.imageUrls[0] || '', quantity: line.quantity };
     });
     await CartItem.deleteMany({ userId: request.user.id });
     if (documents.length) await CartItem.insertMany(documents);
