@@ -36,6 +36,8 @@ const testimonialSchema = z
 
     isApproved: z.boolean().optional(),
 
+    isActive: z.boolean().optional(),
+
     isFeatured: z.boolean().optional(),
   })
   .strict();
@@ -130,72 +132,6 @@ router.get('/testimonials', async (request, response, next) => {
     next(error);
   }
 });
-
-
-
-/* =========================================================
-   UPDATE TESTIMONIAL - ADMIN
-========================================================= */
-
-router.patch(
-  '/testimonials/:id',
-  async (request, response, next) => {
-    try {
-      const input = z
-        .object({
-          isApproved: z.boolean().optional(),
-          isActive: z.boolean().optional(),
-        })
-        .strict()
-        .parse(request.body);
-
-      if (
-        input.isApproved === undefined &&
-        input.isActive === undefined
-      ) {
-        return response.status(400).json({
-          success: false,
-          error: 'No changes provided.',
-        });
-      }
-
-      const testimonial =
-        await Testimonial.findByIdAndUpdate(
-          request.params.id,
-          {
-            $set: input,
-          },
-          {
-            new: true,
-            runValidators: true,
-          }
-        );
-
-      if (!testimonial) {
-        return response.status(404).json({
-          success: false,
-          error: 'Testimonial not found.',
-        });
-      }
-
-      return response.json({
-        success: true,
-        message: 'Testimonial updated successfully.',
-
-        testimonial: {
-          ...testimonial.toObject(),
-          id: String(testimonial._id),
-
-          userId: testimonial.userId
-            ? String(testimonial.userId)
-            : null,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
 
 
 
