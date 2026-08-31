@@ -27,13 +27,24 @@ router.get('/:id', requireAuth, async (request, response, next) => {
 });
 
 
+/* =====================================================
+   TRACK ORDER
+
+   Supports:
+
+   NEW ORDERS:
+   JE123456789ABC
+
+   OLD ORDERS:
+   JE + last 8 characters of MongoDB ObjectId
+
+   FULL MONGODB ID:
+   68abc123456789abcdef1234
+===================================================== */
+
 router.get('/track', async (req, res) => {
   try {
     const { orderId } = req.query;
-
-    /* ================================================
-       VALIDATE ORDER ID
-    ================================================= */
 
     if (!orderId || typeof orderId !== 'string') {
       return res.status(400).json({
@@ -41,12 +52,11 @@ router.get('/track', async (req, res) => {
       });
     }
 
-    const cleanOrderId = orderId
+    const enteredOrderId = orderId
       .trim()
-      .replace(/^JE/i, '')
       .toUpperCase();
 
-    if (!cleanOrderId) {
+    if (!enteredOrderId) {
       return res.status(400).json({
         error: 'Please enter a valid Order ID.',
       });
@@ -54,52 +64,97 @@ router.get('/track', async (req, res) => {
 
     let order = null;
 
-    /* ================================================
-       METHOD 1
-       FULL MONGODB OBJECT ID
+    /* =====================================================
+       STEP 1: CHECK NEW CUSTOM ORDER ID
 
        Example:
-       JE68B123456789ABCDEF123456
-    ================================================= */
+       JE123456789ABC
+    ===================================================== */
 
-    if (mongoose.Types.ObjectId.isValid(cleanOrderId)) {
+    order = await Order.findOne({
+      orderId: enteredOrderId,
+    }).lean();
+
+
+    /* =====================================================
+       STEP 2: REMOVE JE PREFIX
+
+       Example:
+
+       JEABC12345 → ABC12345
+       jeABC12345 → ABC12345
+    ===================================================== */
+
+    const cleanOrderId = enteredOrderId.replace(/^JE/i, '');
+
+
+    /* =====================================================
+       STEP 3: CHECK FULL MONGODB OBJECT ID
+
+       Example:
+       68abc123456789abcdef1234
+    ===================================================== */
+
+    if (!order && mongoose.Types.ObjectId.isValid(cleanOrderId)) {
       order = await Order.findById(cleanOrderId).lean();
     }
 
-    /* ================================================
-       METHOD 2
-       LAST 8 CHARACTERS OF MONGODB ID
 
-       Example database ID:
+    /* =====================================================
+       STEP 4: CHECK OLD ORDER FORMAT
 
-       68B123456789ABCDEF123456
+       OLD FRONTEND FORMAT:
 
-       User enters:
+       MongoDB ID:
+       68abc123456789abcdef1234
 
-       JEEF123456
-    ================================================= */
+       Displayed as:
+       JEEF1234
+
+       So we compare the LAST 8 characters.
+    ===================================================== */
 
     if (!order && cleanOrderId.length === 8) {
-      const orders = await Order.find({})
-        .sort({ createdAt: -1 })
-        .select(
-          '_id createdAt customerName customerPhone status total items shippingInfo statusHistory'
-        )
-        .lean();
+      const oldOrders = await Order.aggregate([
+        {
+          $addFields: {
+            mongoIdString: {
+              $toString: '$_id',
+            },
+          },
+        },
+        {
+          $match: {
+            $expr: {
+              $eq: [
+                {
+                  $toUpper: {
+                    $substrCP: [
+                      '$mongoIdString',
+                      16,
+                      8,
+                    ],
+                  },
+                },
+                cleanOrderId.toUpperCase(),
+              ],
+            },
+          },
+        },
+        {
+          $limit: 1,
+        },
+      ]);
 
-      order =
-        orders.find(
-          (item) =>
-            item._id
-              .toString()
-              .slice(-8)
-              .toUpperCase() === cleanOrderId
-        ) || null;
+      if (oldOrders.length > 0) {
+        order = oldOrders[0];
+      }
     }
 
-    /* ================================================
+
+    /* =====================================================
        ORDER NOT FOUND
-    ================================================= */
+    ===================================================== */
 
     if (!order) {
       return res.status(404).json({
@@ -108,118 +163,85 @@ router.get('/track', async (req, res) => {
       });
     }
 
-    /* ================================================
+
+    /* =====================================================
        NORMALIZE STATUS
-    ================================================= */
+    ===================================================== */
 
     const normalizedStatus = normalizeStatus(
       order.status || 'pending'
     );
 
-    /* ================================================
-       STATUS HISTORY
-    ================================================= */
 
-    let statusHistory = (order.statusHistory || [])
-      .map((history) => ({
-        status: normalizeStatus(history.status),
-
-        changedAt:
-          history.changedAt || order.createdAt,
-      }))
-      .filter(
-        (history) =>
-          history.status !== 'pending'
-      );
-
-    /*
-      IMPORTANT:
-
-      Old orders may not have statusHistory.
-
-      Add fallback status.
-    */
-
-    if (statusHistory.length === 0) {
-      statusHistory = [
-        {
-          status: normalizedStatus,
-
-          changedAt: order.createdAt,
-        },
-      ];
-    }
-
-    /* ================================================
+    /* =====================================================
        RETURN TRACKING DATA
-    ================================================= */
+    ===================================================== */
 
     return res.status(200).json({
       order: {
+
         /*
-          Return MongoDB ID.
-          Frontend will display last 8 characters.
+          NEW ORDER:
+          Return custom JE Order ID
+
+          OLD ORDER:
+          Generate JE + last 8 MongoDB ID characters
         */
 
-        id: order._id.toString(),
+        id: order.orderId
+          ? order.orderId
+          : `JE${order._id
+              .toString()
+              .slice(-8)
+              .toUpperCase()}`,
 
         createdAt: order.createdAt,
 
-        customerName:
-          order.customerName || 'Customer',
-
-        /*
-          SECURITY:
-          Hide most of the phone number.
-        */
+        customerName: order.customerName || '',
 
         customerPhone: order.customerPhone
-          ? `******${String(
-              order.customerPhone
-            ).slice(-4)}`
+          ? `******${order.customerPhone.slice(-4)}`
           : '',
 
         status: normalizedStatus,
 
-        total: Number(order.total || 0),
+        total: order.total || 0,
 
-        items: (order.items || []).map(
-          (item) => ({
-            id: item._id
-              ? item._id.toString()
-              : item.productId
-              ? item.productId.toString()
-              : '',
+        items: (order.items || []).map((item) => ({
+          id: item._id?.toString() || '',
 
-            name:
-              item.name || 'Product',
+          name: item.name || '',
 
-            quantity:
-              Number(item.quantity || 1),
+          quantity: item.quantity || 0,
 
-            size:
-              item.size || 'N/A',
+          size: item.size || '',
 
-            image:
-              item.image || '',
-          })
-        ),
+          image: item.image || '',
+        })),
 
         shippingInfo: {
           courierName:
-            order.shippingInfo?.courierName ||
-            '',
+            order.shippingInfo?.courierName || '',
 
           trackingNumber:
-            order.shippingInfo?.trackingNumber ||
-            '',
+            order.shippingInfo?.trackingNumber || '',
 
           trackingUrl:
-            order.shippingInfo?.trackingUrl ||
-            '',
+            order.shippingInfo?.trackingUrl || '',
         },
 
-        statusHistory,
+        statusHistory: (order.statusHistory || [])
+          .map((history) => ({
+            status: normalizeStatus(
+              history.status
+            ),
+
+            changedAt: history.changedAt,
+          }))
+          .filter(
+            (history) =>
+              history.status !== 'pending'
+          ),
       },
     });
 
@@ -234,7 +256,6 @@ router.get('/track', async (req, res) => {
       error:
         'Unable to track your order. Please try again later.',
     });
-
   }
 });
 
