@@ -18,9 +18,69 @@ const categorySchema = new Schema({ name: { type: String, unique: true, trim: tr
 const productSchema = new Schema({ name: String, description: String, categoryId: { type: Schema.Types.ObjectId, ref: 'Category' }, price: Number, discount: Number, discountType: { type: String, enum: ['percentage', 'flat'] }, isOnSale: Boolean, isFeatured: { type: Boolean, default: false }, isActive: { type: Boolean, default: true }, status: { type: String, enum: ['draft', 'published'], default: 'draft' }, sizes: [{ size: { type: String, enum: ['S', 'M', 'L', 'XL', 'XXL'] }, stock: Number, price: { type: Number, min: 0 } }], imageUrls: [String], metaTitle: String, metaDescription: String }, { timestamps: true });
 productSchema.index({ isActive: 1, status: 1, isFeatured: 1, categoryId: 1, createdAt: -1 });
 const adminActivityLogSchema = new Schema({ adminId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, action: { type: String, required: true }, entityType: { type: String, required: true }, entityId: { type: String, required: true }, details: Schema.Types.Mixed }, { timestamps: true });
+const testimonialSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
+    },
+
+    designation: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: '',
+    },
+
+    message: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 1000,
+    },
+
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+      default: 5,
+    },
+
+    image: {
+      type: String,
+      default: '',
+    },
+
+    isApproved: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { timestamps: true }
+);
+
+
 
 export const User = models.User || model('User', userSchema);
 export const Otp = models.Otp || model('Otp', otpSchema);
+export const Testimonial =
+  models.Testimonial || model('Testimonial', testimonialSchema);
 export const Address = models.Address || model('Address', addressSchema);
 export const CartItem = models.CartItem || model('CartItem', cartItemSchema);
 export const WishlistItem = models.WishlistItem || model('WishlistItem', wishlistItemSchema);

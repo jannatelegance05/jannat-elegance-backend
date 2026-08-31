@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
-import { AdminActivityLog, Order, Product } from '../models.js';
+import {
+  AdminActivityLog,
+  Order,
+  Product,
+  Testimonial,
+} from '../models.js';
 import { requireAdmin, requireAuth, requireSameOrigin } from '../auth.js';
 import { sendOrderStatusEmail } from '../email.js';
 import { applyOrderTransition, isSafeTrackingUrl, LEGACY_STATUSES, normalizeStatus, ORDER_STATUSES } from '../order-status.js';
@@ -11,6 +16,316 @@ const audit = (adminId, action, entityType, entityId, details) => AdminActivityL
 const formatOrder = (order) => ({ ...order, id: String(order._id), userId: String(order.userId), status: normalizeStatus(order.status), shippingInfo: { courierName: order.shippingInfo?.courierName || '', trackingNumber: order.shippingInfo?.trackingNumber || '', trackingUrl: order.shippingInfo?.trackingUrl || '' }, statusHistory: (order.statusHistory || []).map((entry) => ({ status: entry.status, changedAt: entry.changedAt, changedBy: entry.changedBy })), items: order.items.map((item) => ({ ...item, id: String(item._id), productId: String(item.productId) })) });
 const dayStart = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 router.use(requireAuth, requireAdmin);
+
+
+/* =========================================================
+   TESTIMONIAL MANAGEMENT
+========================================================= */
+
+const testimonialSchema = z
+  .object({
+    name: z.string().trim().min(2).max(100),
+
+    designation: z.string().trim().max(150).optional(),
+
+    message: z.string().trim().min(10).max(1000),
+
+    rating: z.number().int().min(1).max(5),
+
+    image: z.string().trim().max(2048).optional(),
+
+    isApproved: z.boolean().optional(),
+
+    isFeatured: z.boolean().optional(),
+  })
+  .strict();
+
+
+/* =========================================================
+   GET ALL TESTIMONIALS - ADMIN
+========================================================= */
+
+router.get('/testimonials', async (request, response, next) => {
+  try {
+    const page = Math.max(
+      1,
+      Number(request.query.page) || 1
+    );
+
+    const limit = Math.min(
+      50,
+      Math.max(1, Number(request.query.limit) || 20)
+    );
+
+    const query = {};
+
+    if (typeof request.query.approved === 'string') {
+      if (request.query.approved === 'true') {
+        query.isApproved = true;
+      }
+
+      if (request.query.approved === 'false') {
+        query.isApproved = false;
+      }
+    }
+
+    if (
+      typeof request.query.search === 'string' &&
+      request.query.search.trim()
+    ) {
+      const term = request.query.search
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      query.$or = [
+        {
+          name: {
+            $regex: term,
+            $options: 'i',
+          },
+        },
+        {
+          message: {
+            $regex: term,
+            $options: 'i',
+          },
+        },
+      ];
+    }
+
+    const [testimonials, total] = await Promise.all([
+      Testimonial.find(query)
+        .sort({
+          createdAt: -1,
+        })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+
+      Testimonial.countDocuments(query),
+    ]);
+
+    return response.json({
+      success: true,
+
+      testimonials: testimonials.map((testimonial) => ({
+        ...testimonial,
+        id: String(testimonial._id),
+
+        userId: testimonial.userId
+          ? String(testimonial.userId)
+          : null,
+      })),
+
+      page,
+
+      pages: Math.max(
+        1,
+        Math.ceil(total / limit)
+      ),
+
+      total,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+/* =========================================================
+   ADD TESTIMONIAL - ADMIN
+========================================================= */
+
+router.post(
+  '/testimonials',
+  requireSameOrigin,
+  async (request, response, next) => {
+    try {
+      const input = testimonialSchema.parse(request.body);
+
+      const testimonial = await Testimonial.create({
+        name: input.name,
+
+        designation: input.designation || '',
+
+        message: input.message,
+
+        rating: input.rating,
+
+        image: input.image || '',
+
+        isApproved:
+          input.isApproved !== undefined
+            ? input.isApproved
+            : true,
+
+        isFeatured:
+          input.isFeatured !== undefined
+            ? input.isFeatured
+            : false,
+      });
+
+      await audit(
+        request.user.id,
+        'create',
+        'testimonial',
+        String(testimonial._id),
+        {
+          name: testimonial.name,
+          rating: testimonial.rating,
+        }
+      );
+
+      return response.status(201).json({
+        success: true,
+
+        testimonial: {
+          ...testimonial.toObject(),
+
+          id: String(testimonial._id),
+
+          userId: testimonial.userId
+            ? String(testimonial.userId)
+            : null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+/* =========================================================
+   UPDATE TESTIMONIAL
+========================================================= */
+
+router.patch(
+  '/testimonials/:id',
+  requireSameOrigin,
+  async (request, response, next) => {
+    try {
+      if (!mongoose.isValidObjectId(request.params.id)) {
+        return response.status(404).json({
+          success: false,
+          error: 'Testimonial not found',
+        });
+      }
+
+      const input = testimonialSchema
+        .partial()
+        .strict()
+        .parse(request.body);
+
+      if (Object.keys(input).length === 0) {
+        return response.status(400).json({
+          success: false,
+          error: 'No changes provided',
+        });
+      }
+
+      const testimonial =
+        await Testimonial.findByIdAndUpdate(
+          request.params.id,
+          {
+            $set: {
+              ...input,
+            },
+          },
+          {
+            new: true,
+            runValidators: true,
+          }
+        );
+
+      if (!testimonial) {
+        return response.status(404).json({
+          success: false,
+          error: 'Testimonial not found',
+        });
+      }
+
+      await audit(
+        request.user.id,
+        'update',
+        'testimonial',
+        String(testimonial._id),
+        input
+      );
+
+      return response.json({
+        success: true,
+
+        testimonial: {
+          ...testimonial.toObject(),
+
+          id: String(testimonial._id),
+
+          userId: testimonial.userId
+            ? String(testimonial.userId)
+            : null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+/* =========================================================
+   DELETE TESTIMONIAL
+========================================================= */
+
+router.delete(
+  '/testimonials/:id',
+  requireSameOrigin,
+  async (request, response, next) => {
+    try {
+      if (!mongoose.isValidObjectId(request.params.id)) {
+        return response.status(404).json({
+          success: false,
+          error: 'Testimonial not found',
+        });
+      }
+
+      const testimonial =
+        await Testimonial.findById(
+          request.params.id
+        );
+
+      if (!testimonial) {
+        return response.status(404).json({
+          success: false,
+          error: 'Testimonial not found',
+        });
+      }
+
+      await Testimonial.deleteOne({
+        _id: testimonial._id,
+      });
+
+      await audit(
+        request.user.id,
+        'delete',
+        'testimonial',
+        String(testimonial._id),
+        {
+          name: testimonial.name,
+          rating: testimonial.rating,
+        }
+      );
+
+      return response.json({
+        success: true,
+        message: 'Testimonial deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 
 router.get('/orders', async (request, response, next) => { try {
   const page = Math.max(1, Number(request.query.page) || 1); const limit = Math.min(50, Math.max(1, Number(request.query.limit) || 20)); const query = {};

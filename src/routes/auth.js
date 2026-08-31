@@ -3,8 +3,22 @@ import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { User, Otp } from '../models.js';
-import { clearSession, issueSession, publicUser, requireAuth, requireSameOrigin } from '../auth.js';
+import {
+  User,
+  Otp,
+  Address,
+  CartItem,
+  WishlistItem,
+  Order,
+} from '../models.js';
+import {
+  clearSession,
+  issueSession,
+  publicUser,
+  requireAuth,
+  requireAuthWithPassword,
+  requireSameOrigin,
+} from '../auth.js';
 import { createOtp, hashOtp, sendOtpEmail, sendPasswordResetEmail } from '../email.js';
 import { config } from '../config.js';
 
@@ -92,6 +106,168 @@ router.post('/reset-password', requireSameOrigin, limitAttempts(5, 15 * 60 * 100
     response.json({ success: true });
   } catch (error) { next(error); }
 });
+
+// ================= CHANGE PASSWORD =================
+
+router.post(
+  '/change-password',
+  requireAuthWithPassword,
+  requireSameOrigin,
+  limitAttempts(5, 15 * 60 * 1000),
+  async (request, response, next) => {
+    try {
+      const input = z
+        .object({
+          currentPassword: z.string().min(1).max(128),
+          newPassword: z.string().min(8).max(128),
+        })
+        .strict()
+        .parse(request.body);
+
+      const { currentPassword, newPassword } = input;
+
+      // Google-only account handling
+      if (!request.user.passwordHash) {
+        return response.status(400).json({
+          success: false,
+          error:
+            'This account does not have a password. Please use password reset to create one.',
+        });
+      }
+
+      // Current password verification
+      const passwordMatches = await bcrypt.compare(
+        currentPassword,
+        request.user.passwordHash
+      );
+
+      if (!passwordMatches) {
+        return response.status(400).json({
+          success: false,
+          error: 'Your current password is incorrect.',
+        });
+      }
+
+      // Prevent same password
+      const samePassword = await bcrypt.compare(
+        newPassword,
+        request.user.passwordHash
+      );
+
+      if (samePassword) {
+        return response.status(400).json({
+          success: false,
+          error: 'Your new password must be different from your current password.',
+        });
+      }
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+
+      // Update user password
+      await User.updateOne(
+        { _id: request.user._id },
+        {
+          $set: {
+            passwordHash,
+          },
+        }
+      );
+
+      return response.json({
+        success: true,
+        message: 'Password changed successfully.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ================= DELETE ACCOUNT =================
+
+router.delete(
+  '/delete-account',
+  requireAuth,
+  requireSameOrigin,
+  async (request, response, next) => {
+    try {
+      const input = z
+        .object({
+          confirmation: z.literal('DELETE'),
+        })
+        .strict()
+        .parse(request.body);
+
+      const userId = request.user._id;
+      const userEmail = request.user.email;
+
+      // Delete OTP records
+      await Otp.deleteMany({
+        email: userEmail,
+      });
+
+      // Delete addresses
+      await Address.deleteMany({
+        userId,
+      });
+
+      // Delete cart items
+      await CartItem.deleteMany({
+        userId,
+      });
+
+      // Delete wishlist items
+      await WishlistItem.deleteMany({
+        userId,
+      });
+
+      /*
+        IMPORTANT:
+
+        Orders are NOT deleted because they may contain:
+
+        - Payment records
+        - Razorpay order IDs
+        - Invoice/payment history
+        - Business transaction records
+
+        Instead, personal customer information is anonymized.
+      */
+
+      await Order.updateMany(
+        { userId },
+        {
+          $set: {
+            customerName: 'Deleted User',
+            customerEmail: '',
+            customerPhone: '',
+            shippingAddress: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            adminNotes: 'Customer account deleted',
+          },
+        }
+      );
+
+      // Delete user account
+      await User.deleteOne({
+        _id: userId,
+      });
+
+      // Remove login session
+      clearSession(response);
+
+      return response.json({
+        success: true,
+        message: 'Your account has been permanently deleted.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.get('/me', requireAuth, (request, response) => response.json({ success: true, user: publicUser(request.user) }));
 router.post('/logout', requireSameOrigin, (_request, response) => { clearSession(response); response.json({ success: true }); });

@@ -21,6 +21,48 @@ export async function requireAuth(request, response, next) {
     next();
   } catch { return response.status(401).json({ success: false, error: 'Unauthorized' }); }
 }
+
+export async function requireAuthWithPassword(
+  request,
+  response,
+  next
+) {
+  try {
+    const token =
+      request.cookies[COOKIE_NAME] ||
+      request.headers.authorization?.replace(/^Bearer\s+/i, '');
+
+    if (!token) {
+      return response.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+      });
+    }
+
+    const payload = jwt.verify(token, config.jwtSecret, {
+      issuer: 'jannat-elegance',
+    });
+
+    const user = await User.findById(payload.sub);
+
+    if (!user) {
+      return response.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+      });
+    }
+
+    request.user = user;
+
+    next();
+  } catch {
+    return response.status(401).json({
+      success: false,
+      error: 'Unauthorized',
+    });
+  }
+}
+
 export function requireAdmin(request, response, next) { return request.user?.role === 'admin' ? next() : response.status(403).json({ success: false, error: 'Unauthorized' }); }
 export function publicUser(user) { return { id: user.id, name: user.name, email: user.email, phone: user.phone, avatarUrl: user.avatarUrl, role: user.role, emailVerified: Boolean(user.emailVerifiedAt) }; }
 // Complements the HttpOnly, SameSite cookie: a foreign site cannot submit an

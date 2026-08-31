@@ -16,6 +16,7 @@ import wishlistRoutes from './routes/wishlist.js';
 import webhookRoutes from './routes/webhooks.js';
 import { ensureDefaultCategories } from './categories.js';
 import { Address, Order, WebhookEvent, WishlistItem } from './models.js';
+import testimonialRoutes from './routes/testimonials.js';
 
 await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 10000 });
 await Promise.all([Address.createIndexes(), Order.createIndexes(), WishlistItem.createIndexes(), WebhookEvent.createIndexes()]);
@@ -44,6 +45,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/admin', adminProductRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin/uploads', uploadRoutes);
+app.use('/api/testimonials', testimonialRoutes);
 app.use((error, _request, response, _next) => {
   const isInvalidJson = error instanceof SyntaxError && error.status === 400 && Object.prototype.hasOwnProperty.call(error, 'body');
   console.error(error?.name || 'Unhandled server error');
