@@ -4,7 +4,7 @@ import { Order, Product } from './models.js';
 export const ORDER_STATUSES = ['confirmed', 'processing', 'packed', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled'];
 export const LEGACY_STATUSES = ['pending', 'returned', 'exchanged'];
 export const statusLabel = (status) => ({ confirmed: 'Confirmed', processing: 'Processing', packed: 'Packed', shipped: 'Shipped', in_transit: 'In Transit', out_for_delivery: 'Out for Delivery', delivered: 'Delivered', cancelled: 'Cancelled', pending: 'Confirmed', returned: 'Returned', exchanged: 'Exchanged' }[status] || 'Confirmed');
-export const normalizeStatus = (status) => status === 'pending' ? 'confirmed' : status;
+export const normalizeStatus = (status) => status || 'confirmed';
 const allStatuses = [...ORDER_STATUSES, ...LEGACY_STATUSES];
 // Administrators may correct an order directly when operational circumstances
 // require it (for example, placed straight to out for delivery).

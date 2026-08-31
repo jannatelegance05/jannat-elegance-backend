@@ -34,7 +34,84 @@ router.post('/', async (request, response, next) => {
     const subtotal = Math.round(items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100) / 100; const shipping = subtotal >= 2999 ? 0 : 99; const total = Math.round((subtotal + shipping) * 100) / 100;
     if (input.saveAddress && !input.addressId) await Address.create({ ...address, userId: request.user.id, isDefault: !(await Address.exists({ userId: request.user.id })) });
     let order;
-    try { order = await Order.create({ userId: request.user.id, idempotencyKey, customerName: address.name, customerEmail: request.user.email, customerPhone: address.phone, shippingAddress: address.addressLine, city: address.city, state: address.state, postalCode: address.pincode, subtotal, shipping, total, paymentStatus: 'pending', status: 'pending', items }); } catch (error) { if (error?.code === 11000) { const existing = await Order.findOne({ userId: request.user.id, idempotencyKey }).lean(); if (existing?.razorpayOrderId) return response.json(checkoutResponse(existing)); } throw error; }
+    try {
+  const orderNumber = `JE${Date.now()}${Math.floor(
+    100 + Math.random() * 900
+  )}`;
+
+  function generateOrderId() {
+  const timestamp = Date.now()
+    .toString()
+    .slice(-10);
+
+  const random = Math.random()
+    .toString(36)
+    .substring(2, 6)
+    .toUpperCase();
+
+  return `JE${timestamp}${random}`;
+}
+
+  order = await Order.create({
+    orderId: generateOrderId(),
+    userId: request.user.id,
+
+    // Unique customer-facing Order ID
+    orderNumber,
+
+    idempotencyKey,
+
+    customerName: address.name,
+
+    customerEmail: request.user.email,
+
+    customerPhone: address.phone,
+
+    shippingAddress: address.addressLine,
+
+    city: address.city,
+
+    state: address.state,
+
+    postalCode: address.pincode,
+
+    subtotal,
+
+    shipping,
+
+    total,
+
+    paymentStatus: 'pending',
+
+   status: 'confirmed',
+
+    // Initial tracking history
+    statusHistory: [
+  {
+    status: 'confirmed',
+    changedAt: new Date(),
+    changedBy: request.user.id,
+  },
+],
+
+    items,
+  });
+} catch (error) {
+  if (error?.code === 11000) {
+    const existing = await Order.findOne({
+      userId: request.user.id,
+      idempotencyKey,
+    }).lean();
+
+    if (existing?.razorpayOrderId) {
+      return response.json(
+        checkoutResponse(existing)
+      );
+    }
+  }
+
+  throw error;
+}
     try { const razorpay = new Razorpay({ key_id: config.razorpayKeyId, key_secret: config.razorpayKeySecret }); const paymentOrder = await razorpay.orders.create({ amount: Math.round(total * 100), currency: 'INR', receipt: `je_${String(order._id).slice(-16)}` }); order.razorpayOrderId = paymentOrder.id; await order.save(); return response.status(201).json(checkoutResponse(order)); } catch (error) { await Order.deleteOne({ _id: order._id, userId: request.user.id, paymentStatus: 'pending' }); throw error; }
   } catch (error) { next(error); }
 });

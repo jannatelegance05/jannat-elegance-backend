@@ -25,4 +25,217 @@ router.get('/:id', requireAuth, async (request, response, next) => {
     response.json({ success: true, order: formatCustomerOrder(order), relatedProducts: related.map(formatProduct) });
   } catch (error) { next(error); }
 });
+
+
+router.get('/track', async (req, res) => {
+  try {
+    const { orderId } = req.query;
+
+    /* ================================================
+       VALIDATE ORDER ID
+    ================================================= */
+
+    if (!orderId || typeof orderId !== 'string') {
+      return res.status(400).json({
+        error: 'Order ID is required.',
+      });
+    }
+
+    const cleanOrderId = orderId
+      .trim()
+      .replace(/^JE/i, '')
+      .toUpperCase();
+
+    if (!cleanOrderId) {
+      return res.status(400).json({
+        error: 'Please enter a valid Order ID.',
+      });
+    }
+
+    let order = null;
+
+    /* ================================================
+       METHOD 1
+       FULL MONGODB OBJECT ID
+
+       Example:
+       JE68B123456789ABCDEF123456
+    ================================================= */
+
+    if (mongoose.Types.ObjectId.isValid(cleanOrderId)) {
+      order = await Order.findById(cleanOrderId).lean();
+    }
+
+    /* ================================================
+       METHOD 2
+       LAST 8 CHARACTERS OF MONGODB ID
+
+       Example database ID:
+
+       68B123456789ABCDEF123456
+
+       User enters:
+
+       JEEF123456
+    ================================================= */
+
+    if (!order && cleanOrderId.length === 8) {
+      const orders = await Order.find({})
+        .sort({ createdAt: -1 })
+        .select(
+          '_id createdAt customerName customerPhone status total items shippingInfo statusHistory'
+        )
+        .lean();
+
+      order =
+        orders.find(
+          (item) =>
+            item._id
+              .toString()
+              .slice(-8)
+              .toUpperCase() === cleanOrderId
+        ) || null;
+    }
+
+    /* ================================================
+       ORDER NOT FOUND
+    ================================================= */
+
+    if (!order) {
+      return res.status(404).json({
+        error:
+          'We could not find an order with this Order ID.',
+      });
+    }
+
+    /* ================================================
+       NORMALIZE STATUS
+    ================================================= */
+
+    const normalizedStatus = normalizeStatus(
+      order.status || 'pending'
+    );
+
+    /* ================================================
+       STATUS HISTORY
+    ================================================= */
+
+    let statusHistory = (order.statusHistory || [])
+      .map((history) => ({
+        status: normalizeStatus(history.status),
+
+        changedAt:
+          history.changedAt || order.createdAt,
+      }))
+      .filter(
+        (history) =>
+          history.status !== 'pending'
+      );
+
+    /*
+      IMPORTANT:
+
+      Old orders may not have statusHistory.
+
+      Add fallback status.
+    */
+
+    if (statusHistory.length === 0) {
+      statusHistory = [
+        {
+          status: normalizedStatus,
+
+          changedAt: order.createdAt,
+        },
+      ];
+    }
+
+    /* ================================================
+       RETURN TRACKING DATA
+    ================================================= */
+
+    return res.status(200).json({
+      order: {
+        /*
+          Return MongoDB ID.
+          Frontend will display last 8 characters.
+        */
+
+        id: order._id.toString(),
+
+        createdAt: order.createdAt,
+
+        customerName:
+          order.customerName || 'Customer',
+
+        /*
+          SECURITY:
+          Hide most of the phone number.
+        */
+
+        customerPhone: order.customerPhone
+          ? `******${String(
+              order.customerPhone
+            ).slice(-4)}`
+          : '',
+
+        status: normalizedStatus,
+
+        total: Number(order.total || 0),
+
+        items: (order.items || []).map(
+          (item) => ({
+            id: item._id
+              ? item._id.toString()
+              : item.productId
+              ? item.productId.toString()
+              : '',
+
+            name:
+              item.name || 'Product',
+
+            quantity:
+              Number(item.quantity || 1),
+
+            size:
+              item.size || 'N/A',
+
+            image:
+              item.image || '',
+          })
+        ),
+
+        shippingInfo: {
+          courierName:
+            order.shippingInfo?.courierName ||
+            '',
+
+          trackingNumber:
+            order.shippingInfo?.trackingNumber ||
+            '',
+
+          trackingUrl:
+            order.shippingInfo?.trackingUrl ||
+            '',
+        },
+
+        statusHistory,
+      },
+    });
+
+  } catch (error) {
+
+    console.error(
+      'Track order error:',
+      error
+    );
+
+    return res.status(500).json({
+      error:
+        'Unable to track your order. Please try again later.',
+    });
+
+  }
+});
+
 export default router;

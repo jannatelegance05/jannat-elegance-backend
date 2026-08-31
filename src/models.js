@@ -8,7 +8,137 @@ addressSchema.index({ userId: 1, isDefault: 1 });
 const cartItemSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true }, productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true }, name: String, price: Number, category: String, size: String, image: String, quantity: Number }, { timestamps: true });
 cartItemSchema.index({ userId: 1, productId: 1, size: 1 }, { unique: true });
 const statusHistorySchema = new Schema({ status: { type: String, enum: ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'returned', 'exchanged'] }, changedAt: { type: Date, default: Date.now }, changedBy: { type: Schema.Types.ObjectId, ref: 'User' } }, { _id: false });
-const orderSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, customerName: String, customerEmail: String, customerPhone: String, shippingAddress: String, city: String, state: String, postalCode: String, subtotal: Number, shipping: Number, total: Number, razorpayOrderId: { type: String, unique: true, sparse: true }, paymentId: String, idempotencyKey: { type: String, sparse: true }, paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' }, paidAt: Date, stockReducedAt: Date, paymentSource: String, status: { type: String, enum: ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'returned', 'exchanged'], default: 'pending' }, shippingInfo: { courierName: { type: String, default: '' }, trackingNumber: { type: String, default: '' }, trackingUrl: { type: String, default: '' } }, statusHistory: [statusHistorySchema], deliveredAt: Date, cancelledAt: Date, items: [{ productId: { type: Schema.Types.ObjectId, ref: 'Product' }, name: String, price: Number, quantity: Number, size: String, image: String }], adminNotes: String, cancelReason: String, stockRestoredAt: Date }, { timestamps: true });
+// const orderSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, customerName: String, customerEmail: String, customerPhone: String, shippingAddress: String, city: String, state: String, postalCode: String, subtotal: Number, shipping: Number, total: Number, razorpayOrderId: { type: String, unique: true, sparse: true }, paymentId: String, idempotencyKey: { type: String, sparse: true }, paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' }, paidAt: Date, stockReducedAt: Date, paymentSource: String, status: { type: String, enum: ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'returned', 'exchanged'], default: 'pending' }, shippingInfo: { courierName: { type: String, default: '' }, trackingNumber: { type: String, default: '' }, trackingUrl: { type: String, default: '' } }, statusHistory: [statusHistorySchema], deliveredAt: Date, cancelledAt: Date, items: [{ productId: { type: Schema.Types.ObjectId, ref: 'Product' }, name: String, price: Number, quantity: Number, size: String, image: String }], adminNotes: String, cancelReason: String, stockRestoredAt: Date }, { timestamps: true });
+const orderSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+
+    orderNumber: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+
+    customerName: String,
+
+    customerEmail: String,
+
+    customerPhone: String,
+
+    shippingAddress: String,
+
+    city: String,
+
+    state: String,
+
+    postalCode: String,
+
+    subtotal: Number,
+
+    shipping: Number,
+
+    total: Number,
+
+    razorpayOrderId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    paymentId: String,
+
+    idempotencyKey: {
+      type: String,
+      sparse: true,
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid', 'failed'],
+      default: 'pending',
+    },
+
+    paidAt: Date,
+
+    stockReducedAt: Date,
+
+    paymentSource: String,
+
+    status: {
+      type: String,
+       enum: [
+    'confirmed',
+    'processing',
+    'packed',
+    'shipped',
+    'in_transit',
+    'out_for_delivery',
+    'delivered',
+    'cancelled',
+    'returned',
+    'exchanged'
+  ],
+      default: 'confirmed',
+    },
+
+    shippingInfo: {
+      courierName: {
+        type: String,
+        default: '',
+      },
+
+      trackingNumber: {
+        type: String,
+        default: '',
+      },
+
+      trackingUrl: {
+        type: String,
+        default: '',
+      },
+    },
+
+    statusHistory: [statusHistorySchema],
+
+    deliveredAt: Date,
+
+    cancelledAt: Date,
+
+    items: [
+      {
+        productId: {
+          type: Schema.Types.ObjectId,
+          ref: 'Product',
+        },
+
+        name: String,
+
+        price: Number,
+
+        quantity: Number,
+
+        size: String,
+
+        image: String,
+      },
+    ],
+
+    adminNotes: String,
+
+    cancelReason: String,
+
+    stockRestoredAt: Date,
+  },
+  {
+    timestamps: true,
+  }
+);
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ userId: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
 const wishlistItemSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true } }, { timestamps: true });
