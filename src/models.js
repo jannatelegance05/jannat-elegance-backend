@@ -23,19 +23,27 @@ const testimonialSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
     },
 
     name: {
       type: String,
       required: true,
-      trim: true,
     },
 
-    productName: {
+    avatarUrl: {
+      type: String,
+      default: '',
+    },
+
+    designation: {
+      type: String,
+      default: '',
+    },
+
+    message: {
       type: String,
       required: true,
-      trim: true,
     },
 
     rating: {
@@ -45,15 +53,17 @@ const testimonialSchema = new mongoose.Schema(
       max: 5,
     },
 
-    comment: {
-      type: String,
-      required: true,
-      trim: true,
-      minlength: 10,
-      maxlength: 1000,
+    isApproved: {
+      type: Boolean,
+      default: false,
     },
 
-    isApproved: {
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    isFeatured: {
       type: Boolean,
       default: false,
     },
