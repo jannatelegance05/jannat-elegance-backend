@@ -145,7 +145,78 @@ const wishlistItemSchema = new Schema({ userId: { type: Schema.Types.ObjectId, r
 wishlistItemSchema.index({ userId: 1, productId: 1 }, { unique: true });
 const webhookEventSchema = new Schema({ eventId: { type: String, required: true, unique: true }, eventType: String, razorpayOrderId: String, paymentId: String, processedAt: Date, failedAt: Date, failureCode: String }, { timestamps: true });
 const categorySchema = new Schema({ name: { type: String, unique: true, trim: true }, imageUrl: { type: String, default: '' } }, { timestamps: true });
-const productSchema = new Schema({ name: String, description: String, categoryId: { type: Schema.Types.ObjectId, ref: 'Category' }, price: Number, discount: Number, discountType: { type: String, enum: ['percentage', 'flat'] }, isOnSale: Boolean, isFeatured: { type: Boolean, default: false }, isActive: { type: Boolean, default: true }, status: { type: String, enum: ['draft', 'published'], default: 'draft' }, sizes: [{ size: { type: String, enum: ['S', 'M', 'L', 'XL', 'XXL'] }, stock: Number, price: { type: Number, min: 0 } }], imageUrls: [String], metaTitle: String, metaDescription: String }, { timestamps: true });
+const ProductSchema = new Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+
+  description: {
+    type: String,
+    required: true,
+  },
+
+  categoryId: {
+    type: String,
+    required: true,
+  },
+
+  price: {
+    type: Number,
+    required: true,
+  },
+
+  discount: {
+    type: Number,
+    default: 0,
+  },
+
+  discountType: {
+    type: String,
+    enum: ['percentage', 'flat'],
+    default: 'percentage',
+  },
+
+  isOnSale: {
+    type: Boolean,
+    default: false,
+  },
+
+  isFeatured: {
+    type: Boolean,
+    default: false,
+  },
+
+  imageUrls: {
+    type: [String],
+    default: [],
+  },
+
+  // ✅ ADD THIS
+  videoUrls: {
+    type: [String],
+    default: [],
+  },
+
+  sizes: {
+    type: Array,
+    default: [],
+  },
+
+  metaTitle: String,
+
+  metaDescription: String,
+
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+
+  status: {
+    type: String,
+    default: 'draft',
+  },
+});
 productSchema.index({ isActive: 1, status: 1, isFeatured: 1, categoryId: 1, createdAt: -1 });
 const adminActivityLogSchema = new Schema({ adminId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, action: { type: String, required: true }, entityType: { type: String, required: true }, entityId: { type: String, required: true }, details: Schema.Types.Mixed }, { timestamps: true });
 const testimonialSchema = new mongoose.Schema(

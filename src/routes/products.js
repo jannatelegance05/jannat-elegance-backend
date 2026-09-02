@@ -9,38 +9,137 @@ const sizeValues = ['S', 'M', 'L', 'XL', 'XXL'];
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const categoryImageUrl = z.string().trim().max(2048).refine((value) => /^https:\/\//i.test(value) || /^\/images\//.test(value), 'Use a secure hosted image URL').optional().or(z.literal(''));
 const productInput = z.object({
-  name: z.string().trim().min(2).max(160),
-  description: z.string().trim().min(10).max(5000),
+  name: z
+    .string()
+    .trim()
+    .min(2)
+    .max(160),
+
+  description: z
+    .string()
+    .trim()
+    .min(10)
+    .max(5000),
+
   categoryId: objectId,
-  price: z.number().finite().nonnegative().max(10000000),
-  discount: z.number().finite().nonnegative().max(10000000).default(0),
-  discountType: z.enum(['percentage', 'flat']).default('percentage'),
-  isOnSale: z.boolean().default(false),
-  isFeatured: z.boolean().default(false),
-  isActive: z.boolean().default(true),
-  status: z.enum(['draft', 'published']).default('draft'),
-  sizes: z.array(z.object({ size: z.enum(sizeValues), stock: z.number().int().min(0).max(100000), price: z.number().finite().nonnegative().max(10000000).optional() })).min(1).max(sizeValues.length)
-    .refine((items) => new Set(items.map((item) => item.size)).size === items.length, 'Duplicate sizes are not allowed'),
-  imageUrls: z.array(z.string().url()).min(1).max(10),
-  metaTitle: z.string().trim().max(160).optional().or(z.literal('')),
-  metaDescription: z.string().trim().max(320).optional().or(z.literal('')),
+
+  price: z
+    .number()
+    .finite()
+    .nonnegative()
+    .max(10000000),
+
+  discount: z
+    .number()
+    .finite()
+    .nonnegative()
+    .max(10000000)
+    .default(0),
+
+  discountType: z
+    .enum([
+      'percentage',
+      'flat',
+    ])
+    .default('percentage'),
+
+  isOnSale: z
+    .boolean()
+    .default(false),
+
+  isFeatured: z
+    .boolean()
+    .default(false),
+
+  isActive: z
+    .boolean()
+    .default(true),
+
+  status: z
+    .enum([
+      'draft',
+      'published',
+    ])
+    .default('draft'),
+
+  sizes: z
+    .array(
+      z.object({
+        size: z.enum(sizeValues),
+
+        stock: z
+          .number()
+          .int()
+          .min(0)
+          .max(100000),
+
+        price: z
+          .number()
+          .finite()
+          .nonnegative()
+          .max(10000000)
+          .optional(),
+      })
+    )
+    .min(1)
+    .max(sizeValues.length)
+    .refine(
+      (items) =>
+        new Set(
+          items.map(
+            (item) => item.size
+          )
+        ).size === items.length,
+
+      'Duplicate sizes are not allowed'
+    ),
+
+  imageUrls: z
+    .array(z.string().url())
+    .min(1)
+    .max(10),
+
+  videoUrls: z
+    .array(z.string().url())
+    .max(5)
+    .default([]),
+
+  metaTitle: z
+    .string()
+    .trim()
+    .max(160)
+    .optional()
+    .or(z.literal('')),
+
+  metaDescription: z
+    .string()
+    .trim()
+    .max(320)
+    .optional()
+    .or(z.literal('')),
 }).strict();
 
 const productValidationMessage = (result) => {
   if (result.success) return null;
   const field = String(result.error.issues[0]?.path?.[0] || 'product');
-  const messages = {
-    name: 'Product name must be between 2 and 160 characters.',
-    description: 'Description must be between 10 and 5000 characters.',
-    categoryId: 'Select a valid category.',
-    price: 'Enter a valid product price.',
-    discount: 'Enter a valid discount amount.',
-    discountType: 'Select a valid discount type.',
-    sizes: 'Select at least one size and enter a valid whole-number stock quantity.',
-    imageUrls: 'Upload between 1 and 10 valid product images.',
-    metaTitle: 'Meta title is too long.',
-    metaDescription: 'Meta description is too long.',
-  };
+ const messages = {
+  name: 'Product name must be between 2 and 160 characters.',
+  description: 'Description must be between 10 and 5000 characters.',
+  categoryId: 'Select a valid category.',
+  price: 'Enter a valid product price.',
+  discount: 'Enter a valid discount amount.',
+  discountType: 'Select a valid discount type.',
+  sizes:
+    'Select at least one size and enter a valid whole-number stock quantity.',
+  imageUrls:
+    'Upload between 1 and 10 valid product images.',
+  videoUrls:
+    'Upload valid product videos.',
+  metaTitle:
+    'Meta title is too long.',
+  metaDescription:
+    'Meta description is too long.',
+};
   return messages[field] || 'Product details are invalid.';
 };
 
