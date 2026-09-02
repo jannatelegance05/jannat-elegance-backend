@@ -1,14 +1,334 @@
 import mongoose from 'mongoose';
 
 const { Schema, model, models } = mongoose;
-const userSchema = new Schema({ name: String, email: { type: String, required: true, unique: true, lowercase: true, trim: true }, phone: String, avatarUrl: String, passwordHash: String, role: { type: String, enum: ['customer', 'admin'], default: 'customer' }, googleSubject: { type: String, unique: true, sparse: true }, emailVerifiedAt: Date }, { timestamps: true });
-const otpSchema = new Schema({ email: { type: String, index: true }, purpose: { type: String, enum: ['email_verification', 'password_reset'], required: true }, codeHash: String, expiresAt: { type: Date, index: { expires: 0 } }, attempts: { type: Number, default: 0 } }, { timestamps: true });
-const addressSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, name: String, phone: String, addressLine: String, city: String, state: String, pincode: String, landmark: String, isDefault: { type: Boolean, default: false } }, { timestamps: true });
-addressSchema.index({ userId: 1, isDefault: 1 });
-const cartItemSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true }, productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true }, name: String, price: Number, category: String, size: String, image: String, quantity: Number }, { timestamps: true });
-cartItemSchema.index({ userId: 1, productId: 1, size: 1 }, { unique: true });
-const statusHistorySchema = new Schema({ status: { type: String, enum: ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'returned', 'exchanged'] }, changedAt: { type: Date, default: Date.now }, changedBy: { type: Schema.Types.ObjectId, ref: 'User' } }, { _id: false });
-// const orderSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, customerName: String, customerEmail: String, customerPhone: String, shippingAddress: String, city: String, state: String, postalCode: String, subtotal: Number, shipping: Number, total: Number, razorpayOrderId: { type: String, unique: true, sparse: true }, paymentId: String, idempotencyKey: { type: String, sparse: true }, paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' }, paidAt: Date, stockReducedAt: Date, paymentSource: String, status: { type: String, enum: ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'returned', 'exchanged'], default: 'pending' }, shippingInfo: { courierName: { type: String, default: '' }, trackingNumber: { type: String, default: '' }, trackingUrl: { type: String, default: '' } }, statusHistory: [statusHistorySchema], deliveredAt: Date, cancelledAt: Date, items: [{ productId: { type: Schema.Types.ObjectId, ref: 'Product' }, name: String, price: Number, quantity: Number, size: String, image: String }], adminNotes: String, cancelReason: String, stockRestoredAt: Date }, { timestamps: true });
+
+/* =========================================================
+   USER
+========================================================= */
+
+const userSchema = new Schema(
+  {
+    name: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+
+    phone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    avatarUrl: {
+      type: String,
+      default: '',
+    },
+
+    passwordHash: {
+      type: String,
+      default: '',
+    },
+
+    role: {
+      type: String,
+      enum: ['customer', 'admin'],
+      default: 'customer',
+      index: true,
+    },
+
+    googleSubject: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+
+/* =========================================================
+   OTP
+========================================================= */
+
+const otpSchema = new Schema(
+  {
+    email: {
+      type: String,
+      index: true,
+      lowercase: true,
+      trim: true,
+    },
+
+    purpose: {
+      type: String,
+      enum: [
+        'email_verification',
+        'password_reset',
+      ],
+      required: true,
+    },
+
+    codeHash: {
+      type: String,
+      required: true,
+    },
+
+    expiresAt: {
+      type: Date,
+      index: {
+        expires: 0,
+      },
+    },
+
+    attempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+
+/* =========================================================
+   ADDRESS
+========================================================= */
+
+const addressSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+
+    name: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    phone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    addressLine: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    city: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    state: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    pincode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    landmark: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    isDefault: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+addressSchema.index({
+  userId: 1,
+  isDefault: 1,
+});
+
+
+/* =========================================================
+   CART ITEM
+========================================================= */
+
+const cartItemSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+
+    productId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true,
+    },
+
+    name: {
+      type: String,
+      default: '',
+    },
+
+    price: {
+      type: Number,
+      default: 0,
+    },
+
+    category: {
+      type: String,
+      default: '',
+    },
+
+    size: {
+      type: String,
+      default: '',
+    },
+
+    image: {
+      type: String,
+      default: '',
+    },
+
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+cartItemSchema.index(
+  {
+    userId: 1,
+    productId: 1,
+    size: 1,
+  },
+  {
+    unique: true,
+  }
+);
+
+
+/* =========================================================
+   ORDER STATUS HISTORY
+========================================================= */
+
+const ORDER_STATUSES = [
+  'confirmed',
+  'processing',
+  'packed',
+  'shipped',
+  'in_transit',
+  'out_for_delivery',
+  'delivered',
+  'cancelled',
+  'returned',
+  'exchanged',
+];
+
+const statusHistorySchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: ORDER_STATUSES,
+      required: true,
+    },
+
+    changedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    changedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
+
+/* =========================================================
+   ORDER
+========================================================= */
+
+const orderItemSchema = new Schema(
+  {
+    productId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Product',
+    },
+
+    name: {
+      type: String,
+      default: '',
+    },
+
+    price: {
+      type: Number,
+      default: 0,
+    },
+
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    size: {
+      type: String,
+      default: '',
+    },
+
+    image: {
+      type: String,
+      default: '',
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
+
 const orderSchema = new Schema(
   {
     userId: {
@@ -23,27 +343,59 @@ const orderSchema = new Schema(
       unique: true,
       sparse: true,
       index: true,
+      trim: true,
     },
 
-    customerName: String,
+    customerName: {
+      type: String,
+      default: '',
+    },
 
-    customerEmail: String,
+    customerEmail: {
+      type: String,
+      default: '',
+      lowercase: true,
+    },
 
-    customerPhone: String,
+    customerPhone: {
+      type: String,
+      default: '',
+    },
 
-    shippingAddress: String,
+    shippingAddress: {
+      type: String,
+      default: '',
+    },
 
-    city: String,
+    city: {
+      type: String,
+      default: '',
+    },
 
-    state: String,
+    state: {
+      type: String,
+      default: '',
+    },
 
-    postalCode: String,
+    postalCode: {
+      type: String,
+      default: '',
+    },
 
-    subtotal: Number,
+    subtotal: {
+      type: Number,
+      default: 0,
+    },
 
-    shipping: Number,
+    shipping: {
+      type: Number,
+      default: 0,
+    },
 
-    total: Number,
+    total: {
+      type: Number,
+      default: 0,
+    },
 
     razorpayOrderId: {
       type: String,
@@ -51,7 +403,10 @@ const orderSchema = new Schema(
       sparse: true,
     },
 
-    paymentId: String,
+    paymentId: {
+      type: String,
+      default: '',
+    },
 
     idempotencyKey: {
       type: String,
@@ -60,30 +415,32 @@ const orderSchema = new Schema(
 
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid', 'failed'],
+      enum: [
+        'pending',
+        'paid',
+        'failed',
+      ],
       default: 'pending',
     },
 
-    paidAt: Date,
+    paidAt: {
+      type: Date,
+      default: null,
+    },
 
-    stockReducedAt: Date,
+    stockReducedAt: {
+      type: Date,
+      default: null,
+    },
 
-    paymentSource: String,
+    paymentSource: {
+      type: String,
+      default: '',
+    },
 
     status: {
       type: String,
-       enum: [
-    'confirmed',
-    'processing',
-    'packed',
-    'shipped',
-    'in_transit',
-    'out_for_delivery',
-    'delivered',
-    'cancelled',
-    'returned',
-    'exchanged'
-  ],
+      enum: ORDER_STATUSES,
       default: 'confirmed',
     },
 
@@ -104,125 +461,430 @@ const orderSchema = new Schema(
       },
     },
 
-    statusHistory: [statusHistorySchema],
+    statusHistory: {
+      type: [statusHistorySchema],
+      default: [],
+    },
 
-    deliveredAt: Date,
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
 
-    cancelledAt: Date,
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
 
-    items: [
-      {
-        productId: {
-          type: Schema.Types.ObjectId,
-          ref: 'Product',
-        },
+    items: {
+      type: [orderItemSchema],
+      default: [],
+    },
 
-        name: String,
+    adminNotes: {
+      type: String,
+      default: '',
+    },
 
-        price: Number,
+    cancelReason: {
+      type: String,
+      default: '',
+    },
 
-        quantity: Number,
-
-        size: String,
-
-        image: String,
-      },
-    ],
-
-    adminNotes: String,
-
-    cancelReason: String,
-
-    stockRestoredAt: Date,
+    stockRestoredAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
-orderSchema.index({ status: 1, createdAt: -1 });
-orderSchema.index({ userId: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
-const wishlistItemSchema = new Schema({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true } }, { timestamps: true });
-wishlistItemSchema.index({ userId: 1, productId: 1 }, { unique: true });
-const webhookEventSchema = new Schema({ eventId: { type: String, required: true, unique: true }, eventType: String, razorpayOrderId: String, paymentId: String, processedAt: Date, failedAt: Date, failureCode: String }, { timestamps: true });
-const categorySchema = new Schema({ name: { type: String, unique: true, trim: true }, imageUrl: { type: String, default: '' } }, { timestamps: true });
-const productSchema = new Schema({
-  name: {
-    type: String,
-    required: true,
-  },
 
-  description: {
-    type: String,
-    required: true,
-  },
-
-  categoryId: {
-    type: String,
-    required: true,
-  },
-
-  price: {
-    type: Number,
-    required: true,
-  },
-
-  discount: {
-    type: Number,
-    default: 0,
-  },
-
-  discountType: {
-    type: String,
-    enum: ['percentage', 'flat'],
-    default: 'percentage',
-  },
-
-  isOnSale: {
-    type: Boolean,
-    default: false,
-  },
-
-  isFeatured: {
-    type: Boolean,
-    default: false,
-  },
-
-  imageUrls: {
-    type: [String],
-    default: [],
-  },
-
-  // ✅ ADD THIS
-  videoUrls: {
-    type: [String],
-    default: [],
-  },
-
-  sizes: {
-    type: Array,
-    default: [],
-  },
-
-  metaTitle: String,
-
-  metaDescription: String,
-
-  isActive: {
-    type: Boolean,
-    default: true,
-  },
-
-  status: {
-    type: String,
-    default: 'draft',
-  },
+orderSchema.index({
+  status: 1,
+  createdAt: -1,
 });
-productSchema.index({ isActive: 1, status: 1, isFeatured: 1, categoryId: 1, createdAt: -1 });
-const adminActivityLogSchema = new Schema({ adminId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, action: { type: String, required: true }, entityType: { type: String, required: true }, entityId: { type: String, required: true }, details: Schema.Types.Mixed }, { timestamps: true });
-const testimonialSchema = new mongoose.Schema(
+
+orderSchema.index(
+  {
+    userId: 1,
+    idempotencyKey: 1,
+  },
+  {
+    unique: true,
+    sparse: true,
+  }
+);
+
+
+/* =========================================================
+   WISHLIST
+========================================================= */
+
+const wishlistItemSchema = new Schema(
   {
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+
+    productId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+wishlistItemSchema.index(
+  {
+    userId: 1,
+    productId: 1,
+  },
+  {
+    unique: true,
+  }
+);
+
+
+/* =========================================================
+   WEBHOOK EVENTS
+========================================================= */
+
+const webhookEventSchema = new Schema(
+  {
+    eventId: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+
+    eventType: {
+      type: String,
+      default: '',
+    },
+
+    razorpayOrderId: {
+      type: String,
+      default: '',
+    },
+
+    paymentId: {
+      type: String,
+      default: '',
+    },
+
+    processedAt: {
+      type: Date,
+      default: null,
+    },
+
+    failedAt: {
+      type: Date,
+      default: null,
+    },
+
+    failureCode: {
+      type: String,
+      default: '',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+
+/* =========================================================
+   CATEGORY
+========================================================= */
+
+const categorySchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 80,
+    },
+
+    imageUrl: {
+      type: String,
+      default: '',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+categorySchema.index({
+  name: 1,
+});
+
+
+/* =========================================================
+   PRODUCT SIZE
+========================================================= */
+
+const productSizeSchema = new Schema(
+  {
+    size: {
+      type: String,
+      enum: [
+        'S',
+        'M',
+        'L',
+        'XL',
+        'XXL',
+      ],
+      required: true,
+    },
+
+    stock: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+
+    price: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
+
+/* =========================================================
+   PRODUCT
+========================================================= */
+
+const productSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 160,
+    },
+
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 10,
+      maxlength: 5000,
+    },
+
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Category',
+      required: true,
+      index: true,
+    },
+
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    discount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    discountType: {
+      type: String,
+      enum: [
+        'percentage',
+        'flat',
+      ],
+      default: 'percentage',
+    },
+
+    isOnSale: {
+      type: Boolean,
+      default: false,
+    },
+
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
+
+    /*
+      PRODUCT IMAGES
+      Cloudinary secure URLs
+    */
+
+    imageUrls: {
+      type: [String],
+      default: [],
+    },
+
+    /*
+      PRODUCT VIDEOS
+      Cloudinary secure URLs
+    */
+
+    videoUrls: {
+      type: [String],
+      default: [],
+    },
+
+    /*
+      PRODUCT SIZES & STOCK
+    */
+
+    sizes: {
+      type: [productSizeSchema],
+      default: [],
+    },
+
+    /*
+      SEO
+    */
+
+    metaTitle: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 160,
+    },
+
+    metaDescription: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 320,
+    },
+
+    /*
+      VISIBILITY
+    */
+
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+
+    status: {
+      type: String,
+      enum: [
+        'draft',
+        'published',
+      ],
+      default: 'draft',
+      index: true,
+    },
+  },
+  {
+    /*
+      VERY IMPORTANT
+
+      Your backend uses:
+
+      createdAt
+      updatedAt
+
+      So timestamps must be enabled.
+    */
+    timestamps: true,
+  }
+);
+
+
+/*
+  PRODUCT INDEXES
+*/
+
+productSchema.index({
+  isActive: 1,
+  status: 1,
+  isFeatured: 1,
+  categoryId: 1,
+  createdAt: -1,
+});
+
+productSchema.index({
+  categoryId: 1,
+  createdAt: -1,
+});
+
+productSchema.index({
+  name: 1,
+});
+
+
+/* =========================================================
+   ADMIN ACTIVITY LOG
+========================================================= */
+
+const adminActivityLogSchema = new Schema(
+  {
+    adminId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+
+    action: {
+      type: String,
+      required: true,
+    },
+
+    entityType: {
+      type: String,
+      required: true,
+    },
+
+    entityId: {
+      type: String,
+      required: true,
+    },
+
+    details: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+adminActivityLogSchema.index({
+  adminId: 1,
+  createdAt: -1,
+});
+
+
+/* =========================================================
+   TESTIMONIAL
+========================================================= */
+
+const testimonialSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
@@ -230,6 +892,7 @@ const testimonialSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
+      trim: true,
     },
 
     avatarUrl: {
@@ -240,11 +903,13 @@ const testimonialSchema = new mongoose.Schema(
     designation: {
       type: String,
       default: '',
+      trim: true,
     },
 
     message: {
       type: String,
       required: true,
+      trim: true,
     },
 
     rating: {
@@ -257,16 +922,19 @@ const testimonialSchema = new mongoose.Schema(
     isApproved: {
       type: Boolean,
       default: false,
+      index: true,
     },
 
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
 
     isFeatured: {
       type: Boolean,
       default: false,
+      index: true,
     },
   },
   {
@@ -274,19 +942,57 @@ const testimonialSchema = new mongoose.Schema(
   }
 );
 
+
+/* =========================================================
+   MODELS EXPORT
+========================================================= */
+
+export const User =
+  models.User ||
+  model('User', userSchema);
+
+export const Otp =
+  models.Otp ||
+  model('Otp', otpSchema);
+
+export const Address =
+  models.Address ||
+  model('Address', addressSchema);
+
+export const CartItem =
+  models.CartItem ||
+  model('CartItem', cartItemSchema);
+
+export const WishlistItem =
+  models.WishlistItem ||
+  model('WishlistItem', wishlistItemSchema);
+
+export const WebhookEvent =
+  models.WebhookEvent ||
+  model('WebhookEvent', webhookEventSchema);
+
+export const Order =
+  models.Order ||
+  model('Order', orderSchema);
+
+export const Category =
+  models.Category ||
+  model('Category', categorySchema);
+
+export const Product =
+  models.Product ||
+  model('Product', productSchema);
+
+export const AdminActivityLog =
+  models.AdminActivityLog ||
+  model(
+    'AdminActivityLog',
+    adminActivityLogSchema
+  );
+
 export const Testimonial =
-  mongoose.models.Testimonial ||
-  mongoose.model('Testimonial', testimonialSchema);
-
-
-
-export const User = models.User || model('User', userSchema);
-export const Otp = models.Otp || model('Otp', otpSchema);
-export const Address = models.Address || model('Address', addressSchema);
-export const CartItem = models.CartItem || model('CartItem', cartItemSchema);
-export const WishlistItem = models.WishlistItem || model('WishlistItem', wishlistItemSchema);
-export const WebhookEvent = models.WebhookEvent || model('WebhookEvent', webhookEventSchema);
-export const Order = models.Order || model('Order', orderSchema);
-export const Category = models.Category || model('Category', categorySchema);
-export const Product = models.Product || model('Product', productSchema);
-export const AdminActivityLog = models.AdminActivityLog || model('AdminActivityLog', adminActivityLogSchema);
+  models.Testimonial ||
+  model(
+    'Testimonial',
+    testimonialSchema
+  );

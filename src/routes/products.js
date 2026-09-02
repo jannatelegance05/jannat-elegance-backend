@@ -144,7 +144,46 @@ const productValidationMessage = (result) => {
 };
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const formatProduct = (product) => { const salePrice = product.isOnSale ? Math.max(0, product.price - (product.discountType === 'percentage' ? product.price * product.discount / 100 : product.discount)) : product.price; return { ...product, id: String(product._id), category: product.categoryId?.name || '', categoryId: product.categoryId?._id ? String(product.categoryId._id) : String(product.categoryId), salePrice: Math.round(salePrice * 100) / 100 }; };
+const formatProduct = (product) => {
+  const category =
+    product.categoryId &&
+    typeof product.categoryId === 'object' &&
+    product.categoryId.name
+      ? product.categoryId.name
+      : '';
+
+  const categoryId =
+    product.categoryId &&
+    typeof product.categoryId === 'object' &&
+    product.categoryId._id
+      ? String(product.categoryId._id)
+      : product.categoryId
+      ? String(product.categoryId)
+      : '';
+
+  const salePrice = product.isOnSale
+    ? Math.max(
+        0,
+        product.price -
+          (product.discountType === 'percentage'
+            ? (product.price * product.discount) / 100
+            : product.discount)
+      )
+    : product.price;
+
+  return {
+    ...product,
+
+    id: String(product._id),
+
+    category,
+
+    categoryId,
+
+    salePrice:
+      Math.round(salePrice * 100) / 100,
+  };
+};
 const audit = (adminId, action, entityType, entityId, details) => AdminActivityLog.create({ adminId, action, entityType, entityId, details });
 const validMoney = (value) => typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
 const categoryList = async () => {
@@ -236,17 +275,155 @@ adminProductRoutes.delete('/categories/:id', async (request, response, next) => 
     response.json({ success: true });
   } catch (error) { next(error); }
 });
-adminProductRoutes.get('/products', async (request, response, next) => {
-  try {
-    const page = Math.max(1, Number(request.query.page) || 1); const limit = Math.min(50, Math.max(1, Number(request.query.limit) || 20)); const query = {};
-    if (typeof request.query.category === 'string' && mongoose.isValidObjectId(request.query.category)) query.categoryId = request.query.category;
-    if (typeof request.query.search === 'string' && request.query.search.trim()) query.name = { $regex: escapeRegex(request.query.search.trim()), $options: 'i' };
-    if (request.query.featured === 'true') query.isFeatured = true;
-    const [items, total] = await Promise.all([Product.find(query).populate('categoryId', 'name').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), Product.countDocuments(query)]);
-    response.json({ success: true, products: items.map(formatProduct), page, pages: Math.max(1, Math.ceil(total / limit)), total });
-  } catch (error) { next(error); }
-});
-adminProductRoutes.get('/products/:id', async (request, response, next) => { try { if (!mongoose.isValidObjectId(request.params.id)) return response.status(404).json({ success: false, error: 'Product not found' }); const product = await Product.findById(request.params.id).populate('categoryId', 'name').lean(); if (!product) return response.status(404).json({ success: false, error: 'Product not found' }); response.json({ success: true, product: formatProduct(product) }); } catch (error) { next(error); } });
+// adminProductRoutes.get('/products', async (request, response, next) => {
+//   try {
+//     const page = Math.max(1, Number(request.query.page) || 1); const limit = Math.min(50, Math.max(1, Number(request.query.limit) || 20)); const query = {};
+//     if (typeof request.query.category === 'string' && mongoose.isValidObjectId(request.query.category)) query.categoryId = request.query.category;
+//     if (typeof request.query.search === 'string' && request.query.search.trim()) query.name = { $regex: escapeRegex(request.query.search.trim()), $options: 'i' };
+//     if (request.query.featured === 'true') query.isFeatured = true;
+//     const [items, total] = await Promise.all([Product.find(query).populate('categoryId', 'name').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), Product.countDocuments(query)]);
+//     response.json({ success: true, products: items.map(formatProduct), page, pages: Math.max(1, Math.ceil(total / limit)), total });
+//   } catch (error) { next(error); }
+// });
+
+
+
+adminProductRoutes.get(
+  '/products',
+  async (request, response, next) => {
+    try {
+      const page = Math.max(
+        1,
+        Number(request.query.page) || 1
+      );
+
+      const limit = Math.min(
+        50,
+        Math.max(
+          1,
+          Number(request.query.limit) || 20
+        )
+      );
+
+      const query = {};
+
+      if (
+        typeof request.query.category === 'string' &&
+        request.query.category.trim() &&
+        mongoose.isValidObjectId(
+          request.query.category
+        )
+      ) {
+        query.categoryId =
+          request.query.category;
+      }
+
+      if (
+        typeof request.query.search === 'string' &&
+        request.query.search.trim()
+      ) {
+        query.name = {
+          $regex: escapeRegex(
+            request.query.search.trim()
+          ),
+          $options: 'i',
+        };
+      }
+
+      if (request.query.featured === 'true') {
+        query.isFeatured = true;
+      }
+
+      const [items, total] =
+        await Promise.all([
+          Product.find(query)
+            .populate({
+              path: 'categoryId',
+              select: 'name',
+              model: 'Category',
+            })
+            .sort({
+              createdAt: -1,
+            })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .lean(),
+
+          Product.countDocuments(query),
+        ]);
+
+      response.json({
+        success: true,
+
+        products: items.map(
+          formatProduct
+        ),
+
+        page,
+
+        pages: Math.max(
+          1,
+          Math.ceil(total / limit)
+        ),
+
+        total,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+// adminProductRoutes.get('/products/:id', async (request, response, next) => { try { if (!mongoose.isValidObjectId(request.params.id)) return response.status(404).json({ success: false, error: 'Product not found' }); const product = await Product.findById(request.params.id).populate('categoryId', 'name').lean(); if (!product) return response.status(404).json({ success: false, error: 'Product not found' }); response.json({ success: true, product: formatProduct(product) }); } catch (error) { next(error); } });
+
+
+adminProductRoutes.get(
+  '/products/:id',
+  async (request, response, next) => {
+    try {
+      if (
+        !mongoose.isValidObjectId(
+          request.params.id
+        )
+      ) {
+        return response.status(404).json({
+          success: false,
+          error: 'Product not found',
+        });
+      }
+
+      const product =
+        await Product.findById(
+          request.params.id
+        )
+          .populate({
+            path: 'categoryId',
+            select: 'name',
+            model: 'Category',
+          })
+          .lean();
+
+      if (!product) {
+        return response.status(404).json({
+          success: false,
+          error: 'Product not found',
+        });
+      }
+
+      response.json({
+        success: true,
+
+        product: formatProduct(product),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+
 adminProductRoutes.post('/products', async (request, response, next) => {
   try {
     const parsed = productInput.safeParse(request.body);
