@@ -31,7 +31,7 @@ router.post('/', async (request, response, next) => {
     const ids = [...new Set(input.cart.map((line) => line.id))]; const products = await Product.find({ _id: { $in: ids }, isActive: true, status: 'published' }).populate('categoryId', 'name').lean();
     if (products.length !== ids.length) return response.status(400).json({ success: false, error: 'A product in your cart is no longer available' });
     let items; try { items = makeOrderItems(products, input.cart); } catch (error) { if (error.message === 'InsufficientStock') return response.status(409).json({ success: false, error: 'A selected size is no longer available' }); throw error; }
-    const subtotal = Math.round(items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100) / 100; const shipping = subtotal >= 2999 ? 0 : 99; const total = Math.round((subtotal + shipping) * 100) / 100;
+    const subtotal = Math.round(items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100) / 100; const shipping = 0; const total = subtotal;
     if (input.saveAddress && !input.addressId) await Address.create({ ...address, userId: request.user.id, isDefault: !(await Address.exists({ userId: request.user.id })) });
     let order;
     try {

@@ -22,6 +22,7 @@ export const config = {
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   resendApiKey: process.env.RESEND_API_KEY,
   emailFrom: process.env.EMAIL_FROM,
+  contactEmail: process.env.CONTACT_EMAIL || 'jannatelegance05@gmail.com',
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
