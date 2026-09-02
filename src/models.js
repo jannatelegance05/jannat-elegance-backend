@@ -145,7 +145,7 @@ const wishlistItemSchema = new Schema({ userId: { type: Schema.Types.ObjectId, r
 wishlistItemSchema.index({ userId: 1, productId: 1 }, { unique: true });
 const webhookEventSchema = new Schema({ eventId: { type: String, required: true, unique: true }, eventType: String, razorpayOrderId: String, paymentId: String, processedAt: Date, failedAt: Date, failureCode: String }, { timestamps: true });
 const categorySchema = new Schema({ name: { type: String, unique: true, trim: true }, imageUrl: { type: String, default: '' } }, { timestamps: true });
-const ProductSchema = new Schema({
+const productSchema = new Schema({
   name: {
     type: String,
     required: true,
