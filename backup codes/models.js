@@ -413,21 +413,6 @@ const orderSchema = new Schema(
       sparse: true,
     },
 
-    /* =====================================================
-       PAYMENT METHOD
-       NEW FIELD FOR COD / RAZORPAY
-    ===================================================== */
-
-    paymentMethod: {
-      type: String,
-      enum: [
-        'COD',
-        'RAZORPAY',
-      ],
-      default: 'COD',
-      index: true,
-    },
-
     paymentStatus: {
       type: String,
       enum: [
@@ -743,20 +728,38 @@ const productSchema = new Schema(
       default: false,
     },
 
+    /*
+      PRODUCT IMAGES
+      Cloudinary secure URLs
+    */
+
     imageUrls: {
       type: [String],
       default: [],
     },
+
+    /*
+      PRODUCT VIDEOS
+      Cloudinary secure URLs
+    */
 
     videoUrls: {
       type: [String],
       default: [],
     },
 
+    /*
+      PRODUCT SIZES & STOCK
+    */
+
     sizes: {
       type: [productSizeSchema],
       default: [],
     },
+
+    /*
+      SEO
+    */
 
     metaTitle: {
       type: String,
@@ -771,6 +774,10 @@ const productSchema = new Schema(
       trim: true,
       maxlength: 320,
     },
+
+    /*
+      VISIBILITY
+    */
 
     isActive: {
       type: Boolean,
@@ -789,10 +796,24 @@ const productSchema = new Schema(
     },
   },
   {
+    /*
+      VERY IMPORTANT
+
+      Your backend uses:
+
+      createdAt
+      updatedAt
+
+      So timestamps must be enabled.
+    */
     timestamps: true,
   }
 );
 
+
+/*
+  PRODUCT INDEXES
+*/
 
 productSchema.index({
   isActive: 1,
