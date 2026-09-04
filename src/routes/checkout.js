@@ -107,7 +107,7 @@ function checkoutResponse(order) {
 
     orderId: String(order._id),
 
-    customerOrderId: order.orderId,
+    customerOrderId: order.orderNumber,
 
     status: order.status,
 
@@ -327,7 +327,7 @@ router.post("/", async (request, response, next) => {
       order = await Order.create({
         /* CUSTOMER-FACING ORDER ID */
 
-        orderId: generateOrderId(),
+        orderNumber: generateOrderId(),
 
         /* USER */
 

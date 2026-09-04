@@ -48,10 +48,60 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin/uploads', uploadRoutes);
 app.use('/api/testimonials', testimonialRoutes);
 app.use('/api/contact', contactRoutes);
+// app.use((error, _request, response, _next) => {
+//   const isInvalidJson = error instanceof SyntaxError && error.status === 400 && Object.prototype.hasOwnProperty.call(error, 'body');
+//   console.error(error?.name || 'Unhandled server error');
+//   const status = error?.name === 'ZodError' || isInvalidJson ? 400 : 500;
+//   response.status(status).json({ success: false, error: status === 400 ? 'Invalid request data' : 'Something went wrong' });
+// });
+
+
 app.use((error, _request, response, _next) => {
-  const isInvalidJson = error instanceof SyntaxError && error.status === 400 && Object.prototype.hasOwnProperty.call(error, 'body');
-  console.error(error?.name || 'Unhandled server error');
-  const status = error?.name === 'ZodError' || isInvalidJson ? 400 : 500;
-  response.status(status).json({ success: false, error: status === 400 ? 'Invalid request data' : 'Something went wrong' });
+  const isInvalidJson =
+    error instanceof SyntaxError &&
+    error.status === 400 &&
+    Object.prototype.hasOwnProperty.call(
+      error,
+      'body',
+    );
+
+  console.error('SERVER ERROR:', error);
+
+  if (error?.name === 'ZodError') {
+    console.error(
+      'VALIDATION ERRORS:',
+      error.issues,
+    );
+
+    return response.status(400).json({
+      success: false,
+
+      error: 'Invalid request data',
+
+      details: error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+
+        message: issue.message,
+      })),
+    });
+  }
+
+  if (isInvalidJson) {
+    return response.status(400).json({
+      success: false,
+
+      error: 'Invalid JSON data',
+    });
+  }
+
+  return response.status(500).json({
+    success: false,
+
+    error: 'Something went wrong',
+  });
 });
+
+
+
+
 app.listen(config.port, () => console.log(`Jannat API listening on ${config.port}`));
