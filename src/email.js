@@ -259,7 +259,7 @@ const emailWrapper = ({
                   font-weight:700;
                 "
               >
-                ELLEGANCE
+                ELEGANCE
               </div>
 
             </td>
