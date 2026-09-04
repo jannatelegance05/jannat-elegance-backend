@@ -54,19 +54,20 @@ const checkoutSchema = z
 
     saveAddress: z.boolean().optional(),
 
-    paymentMethod: z.literal("COD"),
+    paymentMethod: z
+      .enum(['COD'])
+      .default('COD'),
   })
   .strict()
   .superRefine((data, context) => {
-    const addressCount =
+    if (
       (data.address ? 1 : 0) +
-      (data.addressId ? 1 : 0);
-
-    if (addressCount !== 1) {
+        (data.addressId ? 1 : 0) !==
+      1
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-
-        message: "Provide exactly one shipping address",
+        message: 'Provide one shipping address',
       });
     }
   });
