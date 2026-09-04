@@ -31,6 +31,14 @@ const safeUrl = (value) => {
   }
 };
 
+const formatCurrency = (amount) => {
+  const value = Number(amount || 0);
+
+  return `₹${value.toLocaleString("en-IN", {
+    maximumFractionDigits: 0,
+  })}`;
+};
+
 /* =========================================================
    RESEND EMAIL SENDER
 ========================================================= */
@@ -93,10 +101,6 @@ const send = async ({
     responseData = responseText;
   }
 
-  /* -------------------------------------------------------
-     SHOW REAL RESEND ERROR
-  ------------------------------------------------------- */
-
   if (!response.ok) {
     console.error(
       "Resend API Error:",
@@ -148,6 +152,185 @@ export function hashOtp(code) {
 }
 
 /* =========================================================
+   PREMIUM EMAIL WRAPPER
+========================================================= */
+
+const emailWrapper = ({
+  preheader = "",
+  content,
+}) => {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+</head>
+
+<body
+  style="
+    margin:0;
+    padding:0;
+    background-color:#f6f2f0;
+  "
+>
+
+  <div
+    style="
+      display:none;
+      max-height:0;
+      overflow:hidden;
+      opacity:0;
+      color:transparent;
+    "
+  >
+    ${preheader}
+  </div>
+
+  <table
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    role="presentation"
+    style="
+      width:100%;
+      background:#f6f2f0;
+    "
+  >
+
+    <tr>
+      <td
+        align="center"
+        style="
+          padding:40px 15px;
+        "
+      >
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          role="presentation"
+          style="
+            max-width:680px;
+            width:100%;
+            background:#ffffff;
+            border-radius:18px;
+            overflow:hidden;
+          "
+        >
+
+          <!-- BRAND HEADER -->
+
+          <tr>
+            <td
+              align="center"
+              style="
+                background:#551923;
+                padding:38px 30px 34px;
+              "
+            >
+
+              <div
+                style="
+                  font-family:Georgia,'Times New Roman',serif;
+                  font-size:30px;
+                  letter-spacing:7px;
+                  color:#ffffff;
+                  font-weight:600;
+                  line-height:36px;
+                "
+              >
+                JANNAT
+              </div>
+
+              <div
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:10px;
+                  letter-spacing:5px;
+                  color:#e8bbc3;
+                  margin-top:7px;
+                  font-weight:700;
+                "
+              >
+                ELLEGANCE
+              </div>
+
+            </td>
+          </tr>
+
+          ${content}
+
+          <!-- FOOTER -->
+
+          <tr>
+            <td
+              align="center"
+              style="
+                background:#3c161e;
+                padding:38px 30px;
+              "
+            >
+
+              <div
+                style="
+                  font-family:Georgia,'Times New Roman',serif;
+                  font-size:21px;
+                  color:#ffffff;
+                  margin-bottom:10px;
+                "
+              >
+                Jannat Elegance
+              </div>
+
+              <div
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:13px;
+                  line-height:22px;
+                  color:#d9b8bf;
+                  max-width:420px;
+                "
+              >
+                Elegance, thoughtfully curated for every occasion.
+              </div>
+
+              <div
+                style="
+                  margin-top:22px;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:11px;
+                  line-height:19px;
+                  color:#a9828a;
+                "
+              >
+                © ${new Date().getFullYear()} Jannat Elegance
+                <br />
+                Thank you for choosing us.
+              </div>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+
+  </table>
+
+</body>
+</html>
+  `;
+};
+
+/* =========================================================
    EMAIL VERIFICATION OTP
 ========================================================= */
 
@@ -161,64 +344,82 @@ export async function sendOtpEmail(
     subject:
       "Your Jannat Elegance verification code",
 
-    html: `
-      <main
-        style="
-          font-family: Arial, sans-serif;
-          color: #3f0a1c;
-          max-width: 600px;
-          margin: auto;
-          padding: 24px;
-        "
-      >
-        <h1
-          style="
-            font-size: 24px;
-            margin-bottom: 20px;
-          "
-        >
-          Verify your email
-        </h1>
+    html: emailWrapper({
+      preheader:
+        "Your secure verification code is ready.",
 
-        <p>
-          Your verification code is:
-        </p>
-
-        <div
-          style="
-            margin: 24px 0;
-            padding: 20px;
-            background: #fff5f7;
-            border-radius: 12px;
-            text-align: center;
-          "
-        >
-          <strong
+      content: `
+        <tr>
+          <td
             style="
-              font-size: 28px;
-              letter-spacing: 6px;
-              color: #800020;
+              padding:48px 40px;
+              text-align:center;
             "
           >
-            ${escapeHtml(code)}
-          </strong>
-        </div>
 
-        <p>
-          This code expires in
-          <strong>10 minutes</strong>.
-        </p>
+            <h1
+              style="
+                margin:0;
+                font-family:Georgia,'Times New Roman',serif;
+                font-size:32px;
+                font-weight:500;
+                color:#3b2026;
+              "
+            >
+              Verify Your Email
+            </h1>
 
-        <p>
-          Do not share this code with anyone.
-        </p>
+            <p
+              style="
+                margin:18px auto 28px;
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:15px;
+                line-height:25px;
+                color:#756468;
+              "
+            >
+              Please use the verification code below to complete
+              your Jannat Elegance account setup.
+            </p>
 
-        <p>
-          With love,<br />
-          <strong>Jannat Elegance</strong>
-        </p>
-      </main>
-    `,
+            <div
+              style="
+                display:inline-block;
+                padding:22px 30px;
+                background:#f8f0f1;
+                border:1px solid #eadadd;
+                border-radius:14px;
+              "
+            >
+              <span
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:32px;
+                  font-weight:700;
+                  letter-spacing:9px;
+                  color:#551923;
+                "
+              >
+                ${escapeHtml(code)}
+              </span>
+            </div>
+
+            <p
+              style="
+                margin-top:28px;
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:13px;
+                color:#8b7479;
+              "
+            >
+              This code expires in 10 minutes.
+              Please do not share it with anyone.
+            </p>
+
+          </td>
+        </tr>
+      `,
+    }),
   });
 }
 
@@ -242,61 +443,81 @@ export async function sendPasswordResetEmail(
     subject:
       "Reset your Jannat Elegance password",
 
-    html: `
-      <main
-        style="
-          font-family: Arial, sans-serif;
-          color: #3f0a1c;
-          max-width: 600px;
-          margin: auto;
-          padding: 24px;
-        "
-      >
-        <h1>
-          Reset your password
-        </h1>
+    html: emailWrapper({
+      preheader:
+        "Reset your Jannat Elegance account password securely.",
 
-        <p>
-          We received a request to reset your password.
-        </p>
-
-        <p>
-          Use the secure button below to create a new password.
-        </p>
-
-        <p style="margin: 30px 0">
-          <a
-            href="${escapeHtml(resetUrl)}"
+      content: `
+        <tr>
+          <td
             style="
-              display: inline-block;
-              padding: 14px 24px;
-              background: #800020;
-              color: #ffffff;
-              text-decoration: none;
-              border-radius: 999px;
-              font-weight: bold;
+              padding:50px 40px;
+              text-align:center;
             "
           >
-            Reset Password
-          </a>
-        </p>
 
-        <p>
-          This link expires in
-          <strong>30 minutes</strong>.
-        </p>
+            <h1
+              style="
+                margin:0;
+                font-family:Georgia,'Times New Roman',serif;
+                font-size:32px;
+                font-weight:500;
+                color:#3b2026;
+              "
+            >
+              Reset Your Password
+            </h1>
 
-        <p>
-          If you did not request this,
-          you can safely ignore this email.
-        </p>
+            <p
+              style="
+                margin:20px auto;
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:15px;
+                line-height:26px;
+                color:#756468;
+              "
+            >
+              We received a request to reset your password.
+              Use the secure button below to create a new one.
+            </p>
 
-        <p>
-          With love,<br />
-          <strong>Jannat Elegance</strong>
-        </p>
-      </main>
-    `,
+            <a
+              href="${escapeHtml(resetUrl)}"
+              style="
+                display:inline-block;
+                margin-top:15px;
+                padding:16px 30px;
+                background:#551923;
+                color:#ffffff;
+                text-decoration:none;
+                border-radius:8px;
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:13px;
+                font-weight:700;
+                letter-spacing:.5px;
+              "
+            >
+              RESET PASSWORD →
+            </a>
+
+            <p
+              style="
+                margin-top:30px;
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:13px;
+                color:#8b7479;
+                line-height:22px;
+              "
+            >
+              This secure link expires in 30 minutes.
+              <br />
+              If you didn't request this, you can safely ignore this email.
+            </p>
+
+          </td>
+        </tr>
+      `,
+    }),
   });
 }
 
@@ -317,49 +538,67 @@ export async function sendContactEmail({
 
     subject: `New contact request from ${name}`,
 
-    html: `
-      <main
-        style="
-          font-family: Arial, sans-serif;
-          color: #3f0a1c;
-          max-width: 600px;
-          margin: auto;
-          padding: 24px;
-        "
-      >
-        <h1>
-          New Contact Request
-        </h1>
+    html: emailWrapper({
+      preheader:
+        "A new customer contact request has been received.",
 
-        <p>
-          <strong>Name:</strong>
-          ${escapeHtml(name)}
-        </p>
+      content: `
+        <tr>
+          <td style="padding:40px;">
 
-        <p>
-          <strong>Email:</strong>
-          ${escapeHtml(email)}
-        </p>
+            <h1
+              style="
+                margin:0 0 28px;
+                font-family:Georgia,'Times New Roman',serif;
+                font-size:30px;
+                font-weight:500;
+                color:#3b2026;
+              "
+            >
+              New Contact Request
+            </h1>
 
-        <p>
-          <strong>Phone:</strong>
-          ${escapeHtml(
-            phone || "Not provided",
-          )}
-        </p>
+            <table
+              width="100%"
+              cellpadding="0"
+              cellspacing="0"
+              style="
+                background:#faf6f5;
+                border:1px solid #eadfdf;
+                border-radius:12px;
+              "
+            >
 
-        <p>
-          <strong>Message:</strong>
-        </p>
+              <tr>
+                <td style="padding:20px;">
 
-        <p>
-          ${escapeHtml(message).replace(
-            /\n/g,
-            "<br />",
-          )}
-        </p>
-      </main>
-    `,
+                  <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+
+                  <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+
+                  <p>
+                    <strong>Phone:</strong>
+                    ${escapeHtml(phone || "Not provided")}
+                  </p>
+
+                  <p><strong>Message:</strong></p>
+
+                  <p style="line-height:24px;">
+                    ${escapeHtml(message).replace(
+                      /\n/g,
+                      "<br />",
+                    )}
+                  </p>
+
+                </td>
+              </tr>
+
+            </table>
+
+          </td>
+        </tr>
+      `,
+    }),
   });
 }
 
@@ -396,9 +635,9 @@ export async function sendOrderStatusEmail(
     return;
   }
 
-  /* -------------------------------------------------------
+  /* =======================================================
      CUSTOMER ORDER NUMBER
-  ------------------------------------------------------- */
+  ======================================================= */
 
   const customerOrderNumber =
     order.orderNumber ||
@@ -417,9 +656,9 @@ export async function sendOrderStatusEmail(
       .split(/\s+/)[0],
   );
 
-  /* -------------------------------------------------------
+  /* =======================================================
      SHIPPING INFORMATION
-  ------------------------------------------------------- */
+  ======================================================= */
 
   const shipping =
     order.shippingInfo?.toObject?.() ||
@@ -438,9 +677,9 @@ export async function sendOrderStatusEmail(
     shipping.trackingUrl,
   );
 
-  /* -------------------------------------------------------
+  /* =======================================================
      ORDER URL
-  ------------------------------------------------------- */
+  ======================================================= */
 
   const orderUrl =
     `${config.frontendOrigin}/orders/${encodeURIComponent(
@@ -448,101 +687,314 @@ export async function sendOrderStatusEmail(
     )}`;
 
   /* =======================================================
-     EMAIL TEMPLATES
+     ORDER ITEMS
+  ======================================================= */
+
+  const items =
+    Array.isArray(order.items)
+      ? order.items
+      : [];
+
+  const itemsHtml =
+    items.length > 0
+      ? items
+          .map((item) => {
+            const name = escapeHtml(
+              item.name ||
+                item.productName ||
+                "Jannat Elegance Collection",
+            );
+
+            const quantity = Number(
+              item.quantity || 1,
+            );
+
+            const size = escapeHtml(
+              item.size || "",
+            );
+
+            const price = Number(
+              item.price ||
+                item.unitPrice ||
+                0,
+            );
+
+            const image = safeUrl(
+              item.image ||
+                item.imageUrl ||
+                item.productImage ||
+                "",
+            );
+
+            return `
+              <tr>
+                <td
+                  style="
+                    padding:20px 0;
+                    border-bottom:1px solid #eadfdf;
+                  "
+                >
+
+                  <table
+                    width="100%"
+                    cellpadding="0"
+                    cellspacing="0"
+                    border="0"
+                  >
+
+                    <tr>
+
+                      ${
+                        image
+                          ? `
+                            <td
+                              width="88"
+                              valign="top"
+                            >
+                              <img
+                                src="${image}"
+                                alt="${name}"
+                                width="76"
+                                height="96"
+                                style="
+                                  display:block;
+                                  width:76px;
+                                  height:96px;
+                                  object-fit:cover;
+                                  border-radius:10px;
+                                  border:1px solid #eadfdf;
+                                "
+                              />
+                            </td>
+                          `
+                          : ""
+                      }
+
+                      <td
+                        valign="top"
+                        style="
+                          padding-left:${image ? "16px" : "0"};
+                        "
+                      >
+
+                        <div
+                          style="
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:16px;
+                            line-height:23px;
+                            font-weight:700;
+                            color:#3b2026;
+                          "
+                        >
+                          ${name}
+                        </div>
+
+                        <div
+                          style="
+                            margin-top:7px;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:13px;
+                            line-height:20px;
+                            color:#8b7479;
+                          "
+                        >
+                          ${
+                            size
+                              ? `Size: ${size} &nbsp;•&nbsp; `
+                              : ""
+                          }
+                          Qty: ${quantity}
+                        </div>
+
+                      </td>
+
+                      <td
+                        valign="top"
+                        align="right"
+                        style="
+                          font-family:Arial,Helvetica,sans-serif;
+                          font-size:16px;
+                          font-weight:700;
+                          color:#551923;
+                          white-space:nowrap;
+                        "
+                      >
+                        ${formatCurrency(
+                          price * quantity,
+                        )}
+                      </td>
+
+                    </tr>
+
+                  </table>
+
+                </td>
+              </tr>
+            `;
+          })
+          .join("")
+      : `
+        <tr>
+          <td
+            style="
+              padding:20px 0;
+              font-family:Arial,Helvetica,sans-serif;
+              color:#756468;
+            "
+          >
+            Your order details are being prepared.
+          </td>
+        </tr>
+      `;
+
+  /* =======================================================
+     ORDER TOTAL
+  ======================================================= */
+
+  const total =
+    Number(
+      order.total ||
+        order.totalAmount ||
+        order.amount ||
+        0,
+    );
+
+  /* =======================================================
+     STATUS CONFIGURATION
   ======================================================= */
 
   const templates = {
     confirmed: {
       subject:
-        "Your Jannat Elegance order has been confirmed",
+        "Your Jannat Elegance order is confirmed ✨",
 
-      message: `
-        Your order
-        <strong>#${number}</strong>
-        has been confirmed.
-        We're preparing it and will keep you updated.
+      title:
+        "Your Order is Confirmed",
+
+      icon: "✓",
+
+      intro: `
+        Thank you for choosing Jannat Elegance, ${firstName}.
+        Your order has been successfully received and our team
+        is preparing your selection with care.
       `,
+
+      accent: "#551923",
     },
 
     processing: {
       subject:
-        "Your Jannat Elegance order is being processed",
+        "We're preparing your Jannat Elegance order",
 
-      message: `
-        Your order
-        <strong>#${number}</strong>
-        is currently being processed.
+      title:
+        "Your Order is Being Prepared",
+
+      icon: "✦",
+
+      intro: `
+        Our team is now carefully preparing your order
+        for the next stage of its journey.
       `,
+
+      accent: "#551923",
     },
 
     packed: {
       subject:
         "Your Jannat Elegance order has been packed",
 
-      message: `
-        Your order
-        <strong>#${number}</strong>
-        has been packed and is getting ready for shipment.
+      title:
+        "Beautifully Packed for You",
+
+      icon: "✦",
+
+      intro: `
+        Your selected pieces have been carefully packed
+        and are almost ready to begin their journey to you.
       `,
+
+      accent: "#551923",
     },
 
     shipped: {
       subject:
-        "Your Jannat Elegance order is on the way",
+        "Your Jannat Elegance order is on its way",
 
-      message: `
-        Great news!
+      title:
+        "Your Order is On Its Way",
 
-        Your order
-        <strong>#${number}</strong>
-        has been shipped.
+      icon: "→",
+
+      intro: `
+        Great news, ${firstName}! Your order has been dispatched
+        and is now making its way to you.
       `,
+
+      accent: "#551923",
     },
 
     in_transit: {
       subject:
         "Your Jannat Elegance order is in transit",
 
-      message: `
-        Your order
-        <strong>#${number}</strong>
-        is travelling through the courier network.
+      title:
+        "Your Order is In Transit",
+
+      icon: "→",
+
+      intro: `
+        Your order is travelling through the courier network
+        and getting closer to you.
       `,
+
+      accent: "#551923",
     },
 
     out_for_delivery: {
       subject:
-        "Your Jannat Elegance order is out for delivery",
+        "Your Jannat Elegance order is arriving soon",
 
-      message: `
-        Your order
-        <strong>#${number}</strong>
-        is out for delivery and should arrive soon.
+      title:
+        "Out for Delivery",
+
+      icon: "★",
+
+      intro: `
+        Exciting news, ${firstName}! Your order is out for delivery
+        and should be arriving very soon.
       `,
+
+      accent: "#551923",
     },
 
     delivered: {
       subject:
         "Your Jannat Elegance order has been delivered",
 
-      message: `
-        Your order
-        <strong>#${number}</strong>
-        has been delivered.
+      title:
+        "Your Order Has Arrived",
 
-        We hope you love your Jannat Elegance purchase.
+      icon: "♥",
+
+      intro: `
+        Your Jannat Elegance order has been successfully delivered.
+        We hope every piece makes you feel as beautiful as you are.
       `,
+
+      accent: "#551923",
     },
 
     cancelled: {
       subject:
-        "Your Jannat Elegance order has been cancelled",
+        "Update regarding your Jannat Elegance order",
 
-      message: `
-        Your order
-        <strong>#${number}</strong>
-        has been cancelled.
+      title:
+        "Order Update",
 
+      icon: "!",
+
+      intro: `
+        Your order has been cancelled.
         ${
           order.cancelReason
             ? `Reason: ${escapeHtml(
@@ -551,6 +1003,8 @@ export async function sendOrderStatusEmail(
             : ""
         }
       `,
+
+      accent: "#7a2935",
     },
   };
 
@@ -566,79 +1020,487 @@ export async function sendOrderStatusEmail(
   }
 
   /* =======================================================
-     SHIPPING DETAILS BLOCK
+     SHIPPING DETAILS
   ======================================================= */
 
   const shippingDetails =
     courier || tracking || trackingUrl
       ? `
-        <div
-          style="
-            margin-top: 24px;
-            padding: 20px;
-            background: #fff5f7;
-            border-radius: 14px;
-          "
-        >
-          <strong
+        <tr>
+          <td
             style="
-              font-size: 16px;
-              color: #800020;
+              padding:10px 40px 30px;
             "
           >
-            Shipping Details
-          </strong>
 
-          ${
-            courier
-              ? `
-                <p>
-                  <strong>Courier:</strong>
-                  ${courier}
-                </p>
-              `
-              : ""
-          }
+            <table
+              width="100%"
+              cellpadding="0"
+              cellspacing="0"
+              border="0"
+              style="
+                background:#f8f2f3;
+                border:1px solid #eadadd;
+                border-radius:14px;
+              "
+            >
 
-          ${
-            tracking
-              ? `
-                <p>
-                  <strong>Tracking Number:</strong>
-                  ${tracking}
-                </p>
-              `
-              : ""
-          }
+              <tr>
+                <td style="padding:24px;">
 
-          ${
-            trackingUrl
-              ? `
-                <p style="margin-top: 20px">
-                  <a
-                    href="${trackingUrl}"
+                  <div
                     style="
-                      display: inline-block;
-                      padding: 12px 20px;
-                      background: #800020;
-                      color: #ffffff;
-                      text-decoration: none;
-                      border-radius: 999px;
-                      font-weight: bold;
+                      font-family:Georgia,'Times New Roman',serif;
+                      font-size:21px;
+                      color:#3b2026;
+                      margin-bottom:18px;
                     "
                   >
-                    Track Your Order
-                  </a>
-                </p>
-              `
-              : ""
-          }
-        </div>
+                    Shipping Details
+                  </div>
+
+                  ${
+                    courier
+                      ? `
+                        <p
+                          style="
+                            margin:8px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:14px;
+                            color:#756468;
+                          "
+                        >
+                          <strong style="color:#3b2026;">
+                            Courier:
+                          </strong>
+                          ${courier}
+                        </p>
+                      `
+                      : ""
+                  }
+
+                  ${
+                    tracking
+                      ? `
+                        <p
+                          style="
+                            margin:8px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:14px;
+                            color:#756468;
+                          "
+                        >
+                          <strong style="color:#3b2026;">
+                            Tracking Number:
+                          </strong>
+                          ${tracking}
+                        </p>
+                      `
+                      : ""
+                  }
+
+                  ${
+                    trackingUrl
+                      ? `
+                        <a
+                          href="${trackingUrl}"
+                          style="
+                            display:inline-block;
+                            margin-top:18px;
+                            padding:13px 22px;
+                            background:#551923;
+                            color:#ffffff;
+                            text-decoration:none;
+                            border-radius:7px;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:12px;
+                            font-weight:700;
+                            letter-spacing:.5px;
+                          "
+                        >
+                          TRACK YOUR ORDER →
+                        </a>
+                      `
+                      : ""
+                  }
+
+                </td>
+              </tr>
+
+            </table>
+
+          </td>
+        </tr>
       `
       : "";
 
   /* =======================================================
-     SEND EMAIL
+     ORDER EMAIL CONTENT
+  ======================================================= */
+
+  const emailContent = `
+
+    <!-- HERO -->
+
+    <tr>
+      <td
+        align="center"
+        style="
+          padding:46px 40px 28px;
+          background:#fffdfc;
+        "
+      >
+
+        <div
+          style="
+            width:62px;
+            height:62px;
+            line-height:62px;
+            text-align:center;
+            border-radius:50%;
+            background:#f7e8eb;
+            color:${template.accent};
+            font-family:Arial,Helvetica,sans-serif;
+            font-size:29px;
+            font-weight:bold;
+            margin:0 auto 22px;
+          "
+        >
+          ${template.icon}
+        </div>
+
+        <h1
+          style="
+            margin:0;
+            font-family:Georgia,'Times New Roman',serif;
+            font-size:34px;
+            line-height:42px;
+            font-weight:500;
+            color:#3b2026;
+          "
+        >
+          ${template.title}
+        </h1>
+
+        <p
+          style="
+            max-width:520px;
+            margin:17px auto 0;
+            font-family:Arial,Helvetica,sans-serif;
+            font-size:15px;
+            line-height:26px;
+            color:#756468;
+          "
+        >
+          ${template.intro}
+        </p>
+
+      </td>
+    </tr>
+
+
+    <!-- ORDER SUMMARY CARD -->
+
+    <tr>
+      <td
+        style="
+          padding:10px 40px 34px;
+          background:#fffdfc;
+        "
+      >
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="
+            background:#f8f2f3;
+            border:1px solid #eadadd;
+            border-radius:13px;
+          "
+        >
+
+          <tr>
+
+            <td
+              style="
+                padding:21px;
+              "
+            >
+
+              <div
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:10px;
+                  font-weight:700;
+                  letter-spacing:1.5px;
+                  text-transform:uppercase;
+                  color:#9a7a80;
+                "
+              >
+                Order Number
+              </div>
+
+              <div
+                style="
+                  margin-top:8px;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:18px;
+                  font-weight:700;
+                  color:#551923;
+                "
+              >
+                #${number}
+              </div>
+
+            </td>
+
+            <td
+              align="right"
+              style="
+                padding:21px;
+              "
+            >
+
+              <div
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:10px;
+                  font-weight:700;
+                  letter-spacing:1.5px;
+                  text-transform:uppercase;
+                  color:#9a7a80;
+                "
+              >
+                Order Total
+              </div>
+
+              <div
+                style="
+                  margin-top:8px;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:21px;
+                  font-weight:700;
+                  color:#551923;
+                "
+              >
+                ${formatCurrency(total)}
+              </div>
+
+            </td>
+
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+
+
+    <!-- PRODUCTS -->
+
+    <tr>
+      <td
+        style="
+          padding:8px 40px 0;
+        "
+      >
+
+        <h2
+          style="
+            margin:0;
+            font-family:Georgia,'Times New Roman',serif;
+            font-size:24px;
+            font-weight:500;
+            color:#3b2026;
+          "
+        >
+          Your Selection
+        </h2>
+
+        <p
+          style="
+            margin:8px 0 12px;
+            font-family:Arial,Helvetica,sans-serif;
+            font-size:13px;
+            color:#967f84;
+          "
+        >
+          A summary of the pieces you've chosen.
+        </p>
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+        >
+          ${itemsHtml}
+        </table>
+
+      </td>
+    </tr>
+
+
+    <!-- TOTAL -->
+
+    <tr>
+      <td
+        style="
+          padding:24px 40px 28px;
+        "
+      >
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+        >
+
+          <tr>
+
+            <td
+              style="
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:14px;
+                color:#756468;
+              "
+            >
+              Total Paid
+            </td>
+
+            <td
+              align="right"
+              style="
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:24px;
+                font-weight:700;
+                color:#551923;
+              "
+            >
+              ${formatCurrency(total)}
+            </td>
+
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+
+
+    ${shippingDetails}
+
+
+    <!-- JOURNEY -->
+
+    <tr>
+      <td
+        style="
+          padding:10px 40px 34px;
+        "
+      >
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="
+            background:#fbf7f5;
+            border:1px solid #eee2df;
+            border-radius:14px;
+          "
+        >
+
+          <tr>
+            <td style="padding:28px;">
+
+              <h3
+                style="
+                  margin:0 0 20px;
+                  font-family:Georgia,'Times New Roman',serif;
+                  font-size:21px;
+                  font-weight:500;
+                  color:#3b2026;
+                "
+              >
+                Your Order Journey
+              </h3>
+
+              <div
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:14px;
+                  line-height:25px;
+                  color:#756468;
+                "
+              >
+                <strong style="color:#551923;">
+                  01 — Order Confirmed
+                </strong>
+                <br />
+
+                <strong style="color:#551923;">
+                  02 — Carefully Prepared
+                </strong>
+                <br />
+
+                <strong style="color:#551923;">
+                  03 — Dispatched to You
+                </strong>
+                <br />
+
+                <strong style="color:#551923;">
+                  04 — Delivered with Love
+                </strong>
+              </div>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+
+
+    <!-- CTA -->
+
+    <tr>
+      <td
+        align="center"
+        style="
+          padding:5px 40px 48px;
+        "
+      >
+
+        <a
+          href="${escapeHtml(orderUrl)}"
+          style="
+            display:inline-block;
+            padding:17px 34px;
+            background:#551923;
+            color:#ffffff;
+            text-decoration:none;
+            border-radius:8px;
+            font-family:Arial,Helvetica,sans-serif;
+            font-size:13px;
+            font-weight:700;
+            letter-spacing:.6px;
+          "
+        >
+          VIEW MY ORDER →
+        </a>
+
+      </td>
+    </tr>
+  `;
+
+  /* =======================================================
+     SEND PREMIUM EMAIL
   ======================================================= */
 
   return send({
@@ -646,68 +1508,10 @@ export async function sendOrderStatusEmail(
 
     subject: template.subject,
 
-    html: `
-      <main
-        style="
-          font-family: Arial, sans-serif;
-          color: #3f0a1c;
-          max-width: 600px;
-          margin: auto;
-          padding: 24px;
-        "
-      >
-        <h1
-          style="
-            font-size: 28px;
-            color: #800020;
-            margin-bottom: 24px;
-          "
-        >
-          Jannat Elegance
-        </h1>
+    html: emailWrapper({
+      preheader: template.subject,
 
-        <p>
-          Hi ${firstName},
-        </p>
-
-        <p>
-          ${template.message}
-        </p>
-
-        ${shippingDetails}
-
-        <p style="margin-top: 28px">
-          <a
-            href="${escapeHtml(orderUrl)}"
-            style="
-              color: #800020;
-              font-weight: bold;
-              text-decoration: none;
-            "
-          >
-            View Your Order →
-          </a>
-        </p>
-
-        <hr
-          style="
-            border: none;
-            border-top: 1px solid #eeeeee;
-            margin: 30px 0;
-          "
-        />
-
-        <p
-          style="
-            color: #777777;
-            font-size: 13px;
-            line-height: 1.6;
-          "
-        >
-          With love,<br />
-          <strong>Jannat Elegance</strong>
-        </p>
-      </main>
-    `,
+      content: emailContent,
+    }),
   });
 }
