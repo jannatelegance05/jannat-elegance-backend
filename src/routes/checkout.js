@@ -164,6 +164,265 @@ function checkoutResponse(order, razorpayOrder) {
 }
 
 /* =========================================================
+   RAZORPAY PAYMENT LOGGING
+========================================================= */
+
+/**
+ * Fetches the payment directly from Razorpay.
+ *
+ * IMPORTANT:
+ * Never log the Razorpay secret/key_secret.
+ *
+ * This function is used to diagnose failed payments and
+ * independently inspect the actual Razorpay payment object.
+ */
+async function fetchAndLogRazorpayPayment(paymentId) {
+  if (!paymentId) {
+    console.error(
+      "[RAZORPAY] Payment details lookup skipped: no payment ID."
+    );
+
+    return null;
+  }
+
+  try {
+    const payment =
+      await razorpay.payments.fetch(
+        paymentId
+      );
+
+    console.error(
+      "========== RAZORPAY PAYMENT DETAILS =========="
+    );
+
+    console.error(
+      JSON.stringify(
+        {
+          id: payment?.id || null,
+
+          order_id:
+            payment?.order_id || null,
+
+          status:
+            payment?.status || null,
+
+          amount:
+            payment?.amount ?? null,
+
+          currency:
+            payment?.currency || null,
+
+          method:
+            payment?.method || null,
+
+          // Failure diagnostics
+          error_code:
+            payment?.error_code || null,
+
+          error_description:
+            payment?.error_description || null,
+
+          error_source:
+            payment?.error_source || null,
+
+          error_step:
+            payment?.error_step || null,
+
+          error_reason:
+            payment?.error_reason || null,
+        },
+        null,
+        2
+      )
+    );
+
+    console.error(
+      "==============================================="
+    );
+
+    return payment;
+  } catch (error) {
+    console.error(
+      "========== RAZORPAY PAYMENT LOOKUP FAILED =========="
+    );
+
+    console.error(
+      JSON.stringify(
+        {
+          message:
+            error?.message || null,
+
+          statusCode:
+            error?.statusCode || null,
+
+          code:
+            error?.code || null,
+
+          error:
+            error?.error || null,
+        },
+        null,
+        2
+      )
+    );
+
+    console.error(
+      "===================================================="
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   PAYMENT FAILED DIAGNOSTICS
+========================================================= */
+
+/**
+ * Called by the frontend when Razorpay Checkout emits
+ * payment.failed.
+ *
+ * This endpoint is diagnostic only.
+ *
+ * It does NOT mark an order as failed or paid.
+ */
+router.post(
+  "/payment-failed",
+  requireSameOrigin,
+  async (request, response) => {
+    try {
+      const body = z
+        .object({
+          paymentId: z
+            .string()
+            .min(1),
+
+          orderId: z
+            .string()
+            .min(1)
+            .optional(),
+
+          razorpayOrderId: z
+            .string()
+            .min(1)
+            .optional(),
+
+          error: z
+            .object({
+              code: z
+                .string()
+                .optional(),
+
+              description: z
+                .string()
+                .optional(),
+
+              source: z
+                .string()
+                .optional(),
+
+              step: z
+                .string()
+                .optional(),
+
+              reason: z
+                .string()
+                .optional(),
+            })
+            .optional(),
+        })
+        .strict()
+        .parse(request.body);
+
+      console.error(
+        "========== RAZORPAY CHECKOUT PAYMENT FAILED =========="
+      );
+
+      console.error(
+        JSON.stringify(
+          {
+            frontendPaymentId:
+              body.paymentId,
+
+            frontendOrderId:
+              body.orderId || null,
+
+            frontendRazorpayOrderId:
+              body.razorpayOrderId || null,
+
+            frontendErrorCode:
+              body.error?.code || null,
+
+            frontendErrorDescription:
+              body.error?.description || null,
+
+            frontendErrorSource:
+              body.error?.source || null,
+
+            frontendErrorStep:
+              body.error?.step || null,
+
+            frontendErrorReason:
+              body.error?.reason || null,
+          },
+          null,
+          2
+        )
+      );
+
+      console.error(
+        "======================================================"
+      );
+
+      /*
+       * Ask Razorpay directly for the payment object.
+       *
+       * This is the important part for diagnosis.
+       */
+      const payment =
+        await fetchAndLogRazorpayPayment(
+          body.paymentId
+        );
+
+      /*
+       * If the payment exists, verify that the
+       * frontend-provided Razorpay order ID matches.
+       */
+      if (
+        payment &&
+        body.razorpayOrderId &&
+        payment.order_id &&
+        payment.order_id !==
+          body.razorpayOrderId
+      ) {
+        console.error(
+          "[RAZORPAY] WARNING: frontend Razorpay order ID does not match payment.order_id."
+        );
+      }
+
+      return response.json({
+        success: true,
+        logged: true,
+      });
+    } catch (error) {
+      console.error(
+        "[RAZORPAY] Failed-payment diagnostic endpoint error:",
+        error
+      );
+
+      /*
+       * Do not make the customer's payment flow fail
+       * because diagnostic logging failed.
+       */
+      return response.status(200).json({
+        success: false,
+        logged: false,
+      });
+    }
+  }
+);
+
+/* =========================================================
    CREATE RAZORPAY ORDER
 ========================================================= */
 
@@ -214,7 +473,7 @@ router.post(
 
       /* ---------------------------------------------------
          IDEMPOTENCY
-         
+
          Guest orders have no userId, so we use the
          idempotency key globally.
       --------------------------------------------------- */
@@ -239,7 +498,7 @@ router.post(
 
       /* ---------------------------------------------------
          LOAD PRODUCTS
-         
+
          Prices ALWAYS come from database.
       --------------------------------------------------- */
 
@@ -327,7 +586,7 @@ router.post(
 
       /* ---------------------------------------------------
          CREATE LOCAL ORDER
-         
+
          Payment remains pending until Razorpay
          verification succeeds.
       --------------------------------------------------- */
@@ -438,29 +697,27 @@ router.post(
       --------------------------------------------------- */
 
       const paymentOrder =
-        await razorpay.orders.create(
-          {
-            amount:
-              Math.round(
-                total * 100
-              ),
+        await razorpay.orders.create({
+          amount:
+            Math.round(
+              total * 100
+            ),
 
-            currency: "INR",
+          currency: "INR",
 
-            receipt:
-              `je_${String(
-                order._id
-              ).slice(-16)}`,
+          receipt:
+            `je_${String(
+              order._id
+            ).slice(-16)}`,
 
-            notes: {
-              orderId:
-                String(order._id),
+          notes: {
+            orderId:
+              String(order._id),
 
-              customerOrderId:
-                order.orderNumber,
-            },
-          }
-        );
+            customerOrderId:
+              order.orderNumber,
+          },
+        });
 
       /* ---------------------------------------------------
          SAVE RAZORPAY ORDER ID
@@ -504,6 +761,38 @@ router.post(
         }
       }
 
+      /*
+       * Log Razorpay API errors without logging
+       * the secret key.
+       */
+      console.error(
+        "========== CHECKOUT / RAZORPAY ORDER ERROR =========="
+      );
+
+      console.error(
+        JSON.stringify(
+          {
+            message:
+              error?.message || null,
+
+            statusCode:
+              error?.statusCode || null,
+
+            code:
+              error?.code || null,
+
+            error:
+              error?.error || null,
+          },
+          null,
+          2
+        )
+      );
+
+      console.error(
+        "====================================================="
+      );
+
       next(error);
     }
   }
@@ -535,7 +824,7 @@ router.post(
 
       /* ---------------------------------------------------
          FIND ORDER
-         
+
          We do NOT trust the frontend's orderId.
          The Razorpay order ID identifies the local order.
       --------------------------------------------------- */
@@ -547,6 +836,17 @@ router.post(
         });
 
       if (!order) {
+        console.error(
+          "[RAZORPAY] Verification failed: local order not found.",
+          {
+            razorpayOrderId:
+              body.razorpay_order_id,
+
+            razorpayPaymentId:
+              body.razorpay_payment_id,
+          }
+        );
+
         return response.status(404).json({
           success: false,
           error:
@@ -556,7 +856,7 @@ router.post(
 
       /* ---------------------------------------------------
          VERIFY SIGNATURE
-         
+
          Razorpay signature:
          HMAC_SHA256(
            razorpay_order_id + "|" + razorpay_payment_id,
@@ -588,10 +888,177 @@ router.post(
         );
 
       if (!signaturesMatch) {
+        console.error(
+          "[RAZORPAY] INVALID PAYMENT SIGNATURE",
+          {
+            razorpayOrderId:
+              body.razorpay_order_id,
+
+            razorpayPaymentId:
+              body.razorpay_payment_id,
+          }
+        );
+
         return response.status(400).json({
           success: false,
           error:
             "Invalid payment signature",
+        });
+      }
+
+      /* ---------------------------------------------------
+         FETCH ACTUAL RAZORPAY PAYMENT
+         
+         This is important:
+         signature verification proves the response
+         came from the expected payment flow, while
+         fetching the payment lets us inspect its
+         actual Razorpay status/details.
+      --------------------------------------------------- */
+
+      const payment =
+        await fetchAndLogRazorpayPayment(
+          body.razorpay_payment_id
+        );
+
+      if (!payment) {
+        return response.status(502).json({
+          success: false,
+          error:
+            "Unable to verify payment with Razorpay",
+        });
+      }
+
+      /* ---------------------------------------------------
+         VERIFY RAZORPAY ORDER ID
+      --------------------------------------------------- */
+
+      if (
+        payment.order_id !==
+        body.razorpay_order_id
+      ) {
+        console.error(
+          "[RAZORPAY] PAYMENT ORDER ID MISMATCH",
+          {
+            expected:
+              body.razorpay_order_id,
+
+            received:
+              payment.order_id,
+
+            paymentId:
+              body.razorpay_payment_id,
+          }
+        );
+
+        return response.status(400).json({
+          success: false,
+          error:
+            "Payment order mismatch",
+        });
+      }
+
+      /* ---------------------------------------------------
+         VERIFY AMOUNT
+         
+         Local order total is in INR.
+         Razorpay amount is in paise.
+      --------------------------------------------------- */
+
+      const expectedAmount =
+        Math.round(
+          Number(order.total) * 100
+        );
+
+      const razorpayAmount =
+        Number(payment.amount);
+
+      if (
+        !Number.isFinite(
+          razorpayAmount
+        ) ||
+        razorpayAmount !==
+          expectedAmount
+      ) {
+        console.error(
+          "[RAZORPAY] PAYMENT AMOUNT MISMATCH",
+          {
+            orderId:
+              String(order._id),
+
+            razorpayOrderId:
+              body.razorpay_order_id,
+
+            paymentId:
+              body.razorpay_payment_id,
+
+            expectedAmount,
+
+            razorpayAmount,
+          }
+        );
+
+        return response.status(400).json({
+          success: false,
+          error:
+            "Payment amount mismatch",
+        });
+      }
+
+      /* ---------------------------------------------------
+         PAYMENT STATUS
+      --------------------------------------------------- */
+
+      /*
+       * Only a captured/authorized successful payment
+       * should proceed to stock reduction.
+       *
+       * Razorpay normally returns "captured" for a
+       * successfully captured payment.
+       */
+
+      if (
+        payment.status !==
+        "captured"
+      ) {
+        console.error(
+          "[RAZORPAY] PAYMENT NOT CAPTURED",
+          {
+            paymentId:
+              payment.id,
+
+            razorpayOrderId:
+              payment.order_id,
+
+            status:
+              payment.status,
+
+            method:
+              payment.method,
+
+            errorCode:
+              payment.error_code,
+
+            errorDescription:
+              payment.error_description,
+
+            errorSource:
+              payment.error_source,
+
+            errorStep:
+              payment.error_step,
+
+            errorReason:
+              payment.error_reason,
+          }
+        );
+
+        return response.status(400).json({
+          success: false,
+
+          error:
+            payment.error_description ||
+            `Payment status is ${payment.status}`,
         });
       }
 
@@ -620,7 +1087,7 @@ router.post(
 
       /* ---------------------------------------------------
          MARK ORDER PAID
-         
+
          Existing commerce helper:
          - transaction
          - stock validation
@@ -675,6 +1142,39 @@ router.post(
           result.order.paymentStatus,
       });
     } catch (error) {
+      /*
+       * Log the complete useful error information,
+       * but NEVER log config.razorpayKeySecret.
+       */
+
+      console.error(
+        "========== RAZORPAY VERIFY ERROR =========="
+      );
+
+      console.error(
+        JSON.stringify(
+          {
+            message:
+              error?.message || null,
+
+            code:
+              error?.code || null,
+
+            statusCode:
+              error?.statusCode || null,
+
+            error:
+              error?.error || null,
+          },
+          null,
+          2
+        )
+      );
+
+      console.error(
+        "============================================"
+      );
+
       if (
         error instanceof Error &&
         error.message ===
