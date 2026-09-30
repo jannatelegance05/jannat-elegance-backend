@@ -61,7 +61,6 @@ const userSchema = new Schema(
   }
 );
 
-
 /* =========================================================
    OTP
 ========================================================= */
@@ -107,7 +106,6 @@ const otpSchema = new Schema(
   }
 );
 
-
 /* =========================================================
    ADDRESS
 ========================================================= */
@@ -117,7 +115,7 @@ const addressSchema = new Schema(
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      default:null,
+      default: null,
       index: true,
     },
 
@@ -177,7 +175,6 @@ addressSchema.index({
   userId: 1,
   isDefault: 1,
 });
-
 
 /* =========================================================
    CART ITEM
@@ -244,7 +241,6 @@ cartItemSchema.index(
   }
 );
 
-
 /* =========================================================
    ORDER STATUS HISTORY
 ========================================================= */
@@ -285,9 +281,8 @@ const statusHistorySchema = new Schema(
   }
 );
 
-
 /* =========================================================
-   ORDER
+   ORDER ITEM
 ========================================================= */
 
 const orderItemSchema = new Schema(
@@ -328,13 +323,20 @@ const orderItemSchema = new Schema(
   }
 );
 
+/* =========================================================
+   ORDER
+========================================================= */
 
 const orderSchema = new Schema(
   {
+    /*
+     * IMPORTANT:
+     * Optional because guest checkout does not have a User.
+     */
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
       index: true,
     },
 
@@ -355,11 +357,13 @@ const orderSchema = new Schema(
       type: String,
       default: '',
       lowercase: true,
+      trim: true,
     },
 
     customerPhone: {
       type: String,
       default: '',
+      trim: true,
     },
 
     shippingAddress: {
@@ -408,14 +412,21 @@ const orderSchema = new Schema(
       default: '',
     },
 
+    /*
+     * Guest checkout idempotency key.
+     *
+     * IMPORTANT:
+     * Do NOT add index: true here.
+     * The unique sparse index is declared below once.
+     */
     idempotencyKey: {
       type: String,
       sparse: true,
+      trim: true,
     },
 
     /* =====================================================
        PAYMENT METHOD
-       NEW FIELD FOR COD / RAZORPAY
     ===================================================== */
 
     paymentMethod: {
@@ -516,11 +527,22 @@ const orderSchema = new Schema(
   }
 );
 
+/*
+ * Order listing index
+ */
 orderSchema.index({
   status: 1,
   createdAt: -1,
 });
 
+/*
+ * IMPORTANT:
+ * Global unique sparse idempotency index.
+ *
+ * This works for both:
+ * - logged-in orders
+ * - guest orders
+ */
 orderSchema.index(
   {
     idempotencyKey: 1,
@@ -530,7 +552,6 @@ orderSchema.index(
     sparse: true,
   }
 );
-
 
 /* =========================================================
    WISHLIST
@@ -565,7 +586,6 @@ wishlistItemSchema.index(
     unique: true,
   }
 );
-
 
 /* =========================================================
    WEBHOOK EVENTS
@@ -614,7 +634,6 @@ const webhookEventSchema = new Schema(
   }
 );
 
-
 /* =========================================================
    CATEGORY
 ========================================================= */
@@ -640,10 +659,13 @@ const categorySchema = new Schema(
   }
 );
 
-categorySchema.index({
-  name: 1,
-});
-
+/*
+ * DO NOT add:
+ *
+ * categorySchema.index({ name: 1 });
+ *
+ * because name: { unique: true } already creates that index.
+ */
 
 /* =========================================================
    PRODUCT SIZE
@@ -680,7 +702,6 @@ const productSizeSchema = new Schema(
     _id: false,
   }
 );
-
 
 /* =========================================================
    PRODUCT
@@ -792,7 +813,6 @@ const productSchema = new Schema(
   }
 );
 
-
 productSchema.index({
   isActive: 1,
   status: 1,
@@ -809,7 +829,6 @@ productSchema.index({
 productSchema.index({
   name: 1,
 });
-
 
 /* =========================================================
    ADMIN ACTIVITY LOG
@@ -853,7 +872,6 @@ adminActivityLogSchema.index({
   adminId: 1,
   createdAt: -1,
 });
-
 
 /* =========================================================
    TESTIMONIAL
@@ -919,7 +937,6 @@ const testimonialSchema = new Schema(
     timestamps: true,
   }
 );
-
 
 /* =========================================================
    MODELS EXPORT
