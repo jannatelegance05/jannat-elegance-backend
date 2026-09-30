@@ -117,7 +117,7 @@ const addressSchema = new Schema(
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      default:null,
+      required: true,
       index: true,
     },
 
@@ -523,6 +523,7 @@ orderSchema.index({
 
 orderSchema.index(
   {
+    userId: 1,
     idempotencyKey: 1,
   },
   {

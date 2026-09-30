@@ -6,7 +6,7 @@ import { calculateSalePrice } from '../commerce.js';
 
 const router = Router();
 const cartLine = z.object({ id: z.string().regex(/^[a-f\d]{24}$/i), size: z.enum(['S', 'M', 'L', 'XL', 'XXL']), quantity: z.number().int().min(1).max(10) });
-//router.use(requireAuth);
+router.use(requireAuth);
 router.get('/', async (request, response, next) => { try { const cart = await CartItem.find({ userId: request.user.id }).lean(); response.json({ success: true, cart: cart.map((line) => ({ id: String(line.productId), name: line.name, price: line.price, category: line.category, size: line.size, image: line.image, quantity: line.quantity })) }); } catch (error) { next(error); } });
 router.post('/', requireSameOrigin, async (request, response, next) => {
   try {
