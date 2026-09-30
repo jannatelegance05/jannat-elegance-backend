@@ -802,132 +802,153 @@ router.post(
    VERIFY RAZORPAY PAYMENT
 ========================================================= */
 
+/* =========================================================
+   VERIFY RAZORPAY PAYMENT
+========================================================= */
+
 router.post(
   "/verify",
   requireSameOrigin,
   async (request, response, next) => {
     try {
-      const body =
-        z
-          .object({
-            razorpay_order_id:
-              z.string().min(1),
-
-            razorpay_payment_id:
-              z.string().min(1),
-
-            razorpay_signature:
-              z.string().min(1),
-          })
-          .strict()
-          .parse(request.body);
+      const body = z
+        .object({
+          razorpay_order_id: z.string().min(1),
+          razorpay_payment_id: z.string().min(1),
+          razorpay_signature: z.string().min(1),
+        })
+        .strict()
+        .parse(request.body);
 
       /* ---------------------------------------------------
-         FIND ORDER
-
-         We do NOT trust the frontend's orderId.
-         The Razorpay order ID identifies the local order.
+         FIND LOCAL ORDER
       --------------------------------------------------- */
 
-      const order =
-        await Order.findOne({
-          razorpayOrderId:
-            body.razorpay_order_id,
-        });
+      const order = await Order.findOne({
+        razorpayOrderId: body.razorpay_order_id,
+      });
 
       if (!order) {
         console.error(
           "[RAZORPAY] Verification failed: local order not found.",
           {
-            razorpayOrderId:
-              body.razorpay_order_id,
-
-            razorpayPaymentId:
-              body.razorpay_payment_id,
+            razorpayOrderId: body.razorpay_order_id,
+            razorpayPaymentId: body.razorpay_payment_id,
           }
         );
 
         return response.status(404).json({
           success: false,
-          error:
-            "Order not found",
+          error: "Order not found",
+        });
+      }
+
+      /* ---------------------------------------------------
+         VERIFY PAYMENT METHOD
+      --------------------------------------------------- */
+
+      if (order.paymentMethod !== "RAZORPAY") {
+        console.error(
+          "[RAZORPAY] Verification failed: invalid payment method.",
+          {
+            orderId: String(order._id),
+            paymentMethod: order.paymentMethod,
+            razorpayOrderId: body.razorpay_order_id,
+          }
+        );
+
+        return response.status(400).json({
+          success: false,
+          error: "Invalid payment method",
         });
       }
 
       /* ---------------------------------------------------
          VERIFY SIGNATURE
-
-         Razorpay signature:
-         HMAC_SHA256(
-           razorpay_order_id + "|" + razorpay_payment_id,
-           RAZORPAY_KEY_SECRET
-         )
       --------------------------------------------------- */
 
-      const generatedSignature =
-        crypto
-          .createHmac(
-            "sha256",
-            config.razorpayKeySecret
-          )
-          .update(
-            `${body.razorpay_order_id}|${body.razorpay_payment_id}`
-          )
-          .digest("hex");
+      const generatedSignature = crypto
+        .createHmac(
+          "sha256",
+          config.razorpayKeySecret
+        )
+        .update(
+          `${body.razorpay_order_id}|${body.razorpay_payment_id}`
+        )
+        .digest("hex");
 
       const signaturesMatch =
         generatedSignature.length ===
           body.razorpay_signature.length &&
         crypto.timingSafeEqual(
-          Buffer.from(
-            generatedSignature
-          ),
-          Buffer.from(
-            body.razorpay_signature
-          )
+          Buffer.from(generatedSignature),
+          Buffer.from(body.razorpay_signature)
         );
 
       if (!signaturesMatch) {
         console.error(
           "[RAZORPAY] INVALID PAYMENT SIGNATURE",
           {
-            razorpayOrderId:
-              body.razorpay_order_id,
-
-            razorpayPaymentId:
-              body.razorpay_payment_id,
+            razorpayOrderId: body.razorpay_order_id,
+            razorpayPaymentId: body.razorpay_payment_id,
           }
         );
 
         return response.status(400).json({
           success: false,
-          error:
-            "Invalid payment signature",
+          error: "Invalid payment signature",
         });
       }
 
+      console.log(
+        "[RAZORPAY] Payment signature verified.",
+        {
+          razorpayOrderId: body.razorpay_order_id,
+          razorpayPaymentId: body.razorpay_payment_id,
+        }
+      );
+
       /* ---------------------------------------------------
          FETCH ACTUAL RAZORPAY PAYMENT
-         
-         This is important:
-         signature verification proves the response
-         came from the expected payment flow, while
-         fetching the payment lets us inspect its
-         actual Razorpay status/details.
       --------------------------------------------------- */
 
-      const payment =
+      let payment =
         await fetchAndLogRazorpayPayment(
           body.razorpay_payment_id
         );
 
       if (!payment) {
+        console.error(
+          "[RAZORPAY] Unable to fetch payment from Razorpay.",
+          {
+            paymentId: body.razorpay_payment_id,
+          }
+        );
+
         return response.status(502).json({
           success: false,
           error:
             "Unable to verify payment with Razorpay",
         });
       }
+
+      console.log(
+        "[RAZORPAY] Initial payment status:",
+        {
+          paymentId: payment.id,
+          orderId: payment.order_id,
+          status: payment.status,
+          amount: payment.amount,
+          currency: payment.currency,
+          method: payment.method,
+          errorCode: payment.error_code,
+          errorDescription:
+            payment.error_description,
+          errorSource: payment.error_source,
+          errorStep: payment.error_step,
+          errorReason: payment.error_reason,
+        }
+      );
 
       /* ---------------------------------------------------
          VERIFY RAZORPAY ORDER ID
@@ -942,10 +963,8 @@ router.post(
           {
             expected:
               body.razorpay_order_id,
-
             received:
               payment.order_id,
-
             paymentId:
               body.razorpay_payment_id,
           }
@@ -960,9 +979,6 @@ router.post(
 
       /* ---------------------------------------------------
          VERIFY AMOUNT
-         
-         Local order total is in INR.
-         Razorpay amount is in paise.
       --------------------------------------------------- */
 
       const expectedAmount =
@@ -1006,20 +1022,310 @@ router.post(
       }
 
       /* ---------------------------------------------------
-         PAYMENT STATUS
+         IDEMPOTENT PAYMENT HANDLING
       --------------------------------------------------- */
 
-      /*
-       * Only a captured/authorized successful payment
-       * should proceed to stock reduction.
-       *
-       * Razorpay normally returns "captured" for a
-       * successfully captured payment.
-       */
+      if (
+        order.paymentStatus === "paid" ||
+        order.stockReducedAt
+      ) {
+        console.log(
+          "[RAZORPAY] Order already marked as paid.",
+          {
+            orderId:
+              String(order._id),
+
+            razorpayOrderId:
+              body.razorpay_order_id,
+
+            paymentId:
+              body.razorpay_payment_id,
+          }
+        );
+
+        return response.json({
+          success: true,
+
+          orderId:
+            String(order._id),
+
+          customerOrderId:
+            order.orderNumber,
+
+          paymentStatus:
+            order.paymentStatus,
+        });
+      }
+
+      /* ---------------------------------------------------
+         CAPTURE AUTHORIZED PAYMENT
+
+         Razorpay may return "authorized" before capture.
+         Capture it server-side before marking the order
+         as paid.
+      --------------------------------------------------- */
 
       if (
-        payment.status !==
-        "captured"
+        payment.status === "authorized"
+      ) {
+        console.log(
+          "[RAZORPAY] Payment is authorized. Starting server-side capture.",
+          {
+            paymentId:
+              body.razorpay_payment_id,
+
+            razorpayOrderId:
+              body.razorpay_order_id,
+
+            amount:
+              expectedAmount,
+
+            currency:
+              payment.currency || "INR",
+          }
+        );
+
+        try {
+          const captureResult =
+            await razorpay.payments.capture(
+              body.razorpay_payment_id,
+              expectedAmount,
+              payment.currency || "INR"
+            );
+
+          console.log(
+            "[RAZORPAY] Capture API response:",
+            {
+              paymentId:
+                captureResult?.id,
+
+              orderId:
+                captureResult?.order_id,
+
+              status:
+                captureResult?.status,
+
+              amount:
+                captureResult?.amount,
+
+              currency:
+                captureResult?.currency,
+
+              method:
+                captureResult?.method,
+
+              errorCode:
+                captureResult?.error_code,
+
+              errorDescription:
+                captureResult?.error_description,
+
+              errorSource:
+                captureResult?.error_source,
+
+              errorStep:
+                captureResult?.error_step,
+
+              errorReason:
+                captureResult?.error_reason,
+            }
+          );
+        } catch (captureError) {
+          console.error(
+            "========== RAZORPAY CAPTURE ERROR =========="
+          );
+
+          console.error(
+            JSON.stringify(
+              {
+                message:
+                  captureError?.message ||
+                  null,
+
+                code:
+                  captureError?.code ||
+                  null,
+
+                statusCode:
+                  captureError?.statusCode ||
+                  null,
+
+                description:
+                  captureError?.description ||
+                  null,
+
+                reason:
+                  captureError?.reason ||
+                  null,
+
+                source:
+                  captureError?.source ||
+                  null,
+
+                step:
+                  captureError?.step ||
+                  null,
+
+                error:
+                  captureError?.error ||
+                  null,
+              },
+              null,
+              2
+            )
+          );
+
+          console.error(
+            "============================================="
+          );
+
+          return response.status(502).json({
+            success: false,
+            error:
+              captureError?.description ||
+              captureError?.message ||
+              "Unable to capture Razorpay payment",
+          });
+        }
+
+        /* -------------------------------------------------
+           FETCH PAYMENT AGAIN AFTER CAPTURE
+        ------------------------------------------------- */
+
+        payment =
+          await fetchAndLogRazorpayPayment(
+            body.razorpay_payment_id
+          );
+
+        if (!payment) {
+          console.error(
+            "[RAZORPAY] Payment could not be fetched after capture.",
+            {
+              paymentId:
+                body.razorpay_payment_id,
+            }
+          );
+
+          return response.status(502).json({
+            success: false,
+            error:
+              "Unable to verify payment after capture",
+          });
+        }
+
+        console.log(
+          "[RAZORPAY] Payment status after capture:",
+          {
+            paymentId:
+              payment.id,
+
+            orderId:
+              payment.order_id,
+
+            status:
+              payment.status,
+
+            amount:
+              payment.amount,
+
+            currency:
+              payment.currency,
+
+            method:
+              payment.method,
+
+            errorCode:
+              payment.error_code,
+
+            errorDescription:
+              payment.error_description,
+
+            errorSource:
+              payment.error_source,
+
+            errorStep:
+              payment.error_step,
+
+            errorReason:
+              payment.error_reason,
+          }
+        );
+
+        /* -------------------------------------------------
+           VERIFY ORDER ID AGAIN
+        ------------------------------------------------- */
+
+        if (
+          payment.order_id !==
+          body.razorpay_order_id
+        ) {
+          console.error(
+            "[RAZORPAY] PAYMENT ORDER ID MISMATCH AFTER CAPTURE",
+            {
+              expected:
+                body.razorpay_order_id,
+
+              received:
+                payment.order_id,
+
+              paymentId:
+                body.razorpay_payment_id,
+            }
+          );
+
+          return response.status(400).json({
+            success: false,
+            error:
+              "Payment order mismatch after capture",
+          });
+        }
+
+        /* -------------------------------------------------
+           VERIFY AMOUNT AGAIN
+        ------------------------------------------------- */
+
+        const capturedAmount =
+          Number(payment.amount);
+
+        if (
+          !Number.isFinite(
+            capturedAmount
+          ) ||
+          capturedAmount !==
+            expectedAmount
+        ) {
+          console.error(
+            "[RAZORPAY] PAYMENT AMOUNT MISMATCH AFTER CAPTURE",
+            {
+              orderId:
+                String(order._id),
+
+              razorpayOrderId:
+                body.razorpay_order_id,
+
+              paymentId:
+                body.razorpay_payment_id,
+
+              expectedAmount,
+
+              capturedAmount,
+            }
+          );
+
+          return response.status(400).json({
+            success: false,
+            error:
+              "Payment amount mismatch after capture",
+          });
+        }
+      }
+
+      /* ---------------------------------------------------
+         PAYMENT MUST NOW BE CAPTURED
+      --------------------------------------------------- */
+
+      if (
+        payment.status !== "captured"
       ) {
         console.error(
           "[RAZORPAY] PAYMENT NOT CAPTURED",
@@ -1063,39 +1369,7 @@ router.post(
       }
 
       /* ---------------------------------------------------
-         IDEMPOTENT PAYMENT HANDLING
-      --------------------------------------------------- */
-
-      if (
-        order.paymentStatus ===
-          "paid" ||
-        order.stockReducedAt
-      ) {
-        return response.json({
-          success: true,
-
-          orderId:
-            String(order._id),
-
-          customerOrderId:
-            order.orderNumber,
-
-          paymentStatus:
-            order.paymentStatus,
-        });
-      }
-
-      /* ---------------------------------------------------
          MARK ORDER PAID
-
-         Existing commerce helper:
-         - transaction
-         - stock validation
-         - stock reduction
-         - payment status
-         - payment ID
-         - paidAt
-         - payment source
       --------------------------------------------------- */
 
       const result =
@@ -1114,7 +1388,9 @@ router.post(
          SEND CONFIRMATION EMAIL
       --------------------------------------------------- */
 
-      if (result.newlyPaid) {
+      if (
+        result.newlyPaid
+      ) {
         sendOrderConfirmationEmail(
           result.order
         ).catch((error) => {
@@ -1129,6 +1405,26 @@ router.post(
          SUCCESS
       --------------------------------------------------- */
 
+      console.log(
+        "[RAZORPAY] PAYMENT VERIFIED AND ORDER PAID",
+        {
+          orderId:
+            String(result.order._id),
+
+          customerOrderId:
+            result.order.orderNumber,
+
+          razorpayOrderId:
+            body.razorpay_order_id,
+
+          paymentId:
+            body.razorpay_payment_id,
+
+          paymentStatus:
+            result.order.paymentStatus,
+        }
+      );
+
       return response.json({
         success: true,
 
@@ -1142,11 +1438,6 @@ router.post(
           result.order.paymentStatus,
       });
     } catch (error) {
-      /*
-       * Log the complete useful error information,
-       * but NEVER log config.razorpayKeySecret.
-       */
-
       console.error(
         "========== RAZORPAY VERIFY ERROR =========="
       );
@@ -1155,16 +1446,36 @@ router.post(
         JSON.stringify(
           {
             message:
-              error?.message || null,
+              error?.message ||
+              null,
 
             code:
-              error?.code || null,
+              error?.code ||
+              null,
 
             statusCode:
-              error?.statusCode || null,
+              error?.statusCode ||
+              null,
+
+            description:
+              error?.description ||
+              null,
+
+            reason:
+              error?.reason ||
+              null,
+
+            source:
+              error?.source ||
+              null,
+
+            step:
+              error?.step ||
+              null,
 
             error:
-              error?.error || null,
+              error?.error ||
+              null,
           },
           null,
           2
