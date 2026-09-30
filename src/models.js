@@ -548,6 +548,7 @@ orderSchema.index(
     idempotencyKey: 1,
   },
   {
+    name: 'orders_idempotencyKey_unique',
     unique: true,
     sparse: true,
   }
