@@ -18,6 +18,8 @@ import { ensureDefaultCategories } from './categories.js';
 import { Address, Order, WebhookEvent, WishlistItem } from './models.js';
 import testimonialRoutes from './routes/testimonials.js';
 import contactRoutes from './routes/contact.js';
+import { adminShippingRoutes, publicShippingRoutes } from './routes/shipping.js';
+import { startTrackingScheduler } from './delhivery.js';
 
 await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 10000 });
 await Promise.all([Address.createIndexes(), Order.createIndexes(), WishlistItem.createIndexes(), WebhookEvent.createIndexes()]);
@@ -48,6 +50,8 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin/uploads', uploadRoutes);
 app.use('/api/testimonials', testimonialRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/shipping', publicShippingRoutes);
+app.use('/api/admin/shipping', adminShippingRoutes);
 // app.use((error, _request, response, _next) => {
 //   const isInvalidJson = error instanceof SyntaxError && error.status === 400 && Object.prototype.hasOwnProperty.call(error, 'body');
 //   console.error(error?.name || 'Unhandled server error');
@@ -105,3 +109,4 @@ app.use((error, _request, response, _next) => {
 
 
 app.listen(config.port, () => console.log(`Jannat API listening on ${config.port}`));
+startTrackingScheduler();

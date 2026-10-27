@@ -24,7 +24,8 @@ export async function applyOrderTransition({ orderId, adminId, input }) {
       const notesChanged = input.adminNotes !== undefined && input.adminNotes !== (order.adminNotes || '');
       const cancelReasonChanged = input.cancelReason !== undefined && input.cancelReason !== (order.cancelReason || '');
       if (statusChanged) { order.status = next; order.statusHistory.push({ status: next, changedAt: new Date(), changedBy: adminId }); }
-      if (shippingChanged) order.shippingInfo = proposedShipping;
+      // Merge so Delhivery shipment data survives manual courier edits.
+      if (shippingChanged) order.shippingInfo = { ...shipping, ...proposedShipping };
       if (input.adminNotes !== undefined) order.adminNotes = input.adminNotes;
       if (next === 'cancelled') order.cancelReason = input.cancelReason || order.cancelReason || 'Cancelled by administrator';
       if (statusChanged && next === 'delivered' && !order.deliveredAt) order.deliveredAt = new Date();

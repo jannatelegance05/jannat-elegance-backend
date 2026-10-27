@@ -7,6 +7,38 @@ import {
   isSafeTrackingUrl,
   normalizeStatus,
 } from "../order-status.js";
+import {
+  formatDelhivery,
+  isDelhiveryConfigured,
+  syncOrderTracking,
+} from "../delhivery.js";
+
+/*
+ * Public tracking refreshes Delhivery data at most this often.
+ */
+const TRACKING_REFRESH_MS = 10 * 60 * 1000;
+
+async function refreshDelhiveryTracking(order) {
+  const info = order?.shippingInfo?.delhivery;
+
+  if (
+    !isDelhiveryConfigured() ||
+    !info?.waybill ||
+    info.cancelledAt ||
+    ["delivered", "cancelled", "returned"].includes(order.status) ||
+    (info.lastSyncedAt && Date.now() - new Date(info.lastSyncedAt).getTime() < TRACKING_REFRESH_MS)
+  ) {
+    return order;
+  }
+
+  try {
+    const document = await Order.findById(order._id);
+    await syncOrderTracking(document);
+    return document.toObject();
+  } catch {
+    return order;
+  }
+}
 
 const router = Router();
 
@@ -47,6 +79,10 @@ const formatCustomerOrder = (order) => {
         )
           ? order.shippingInfo.trackingUrl
           : "",
+
+      delhivery: formatDelhivery(
+        order.shippingInfo?.delhivery,
+      ),
     },
 
     statusHistory: (
@@ -252,6 +288,8 @@ router.get(
         });
       }
 
+      order = await refreshDelhiveryTracking(order);
+
       /* ===============================================
          NORMALIZE STATUS
       =============================================== */
@@ -343,6 +381,11 @@ router.get(
                 ? order.shippingInfo
                     .trackingUrl
                 : "",
+
+            delhivery: formatDelhivery(
+              order.shippingInfo
+                ?.delhivery,
+            ),
           },
 
           statusHistory: (

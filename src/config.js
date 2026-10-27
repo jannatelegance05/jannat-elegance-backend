@@ -29,5 +29,23 @@ export const config = {
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+  delhivery: {
+    apiToken: process.env.DELHIVERY_API_TOKEN || '',
+    environment: process.env.DELHIVERY_ENV === 'production' ? 'production' : 'staging',
+    pickupLocation: process.env.DELHIVERY_PICKUP_LOCATION || '',
+    originPincode: process.env.DELHIVERY_ORIGIN_PINCODE || '',
+    sellerName: process.env.DELHIVERY_SELLER_NAME || 'Jannat Elegance',
+    sellerAddress: process.env.DELHIVERY_SELLER_ADDRESS || '',
+    sellerGstin: process.env.DELHIVERY_SELLER_GSTIN || '',
+    hsnCode: process.env.DELHIVERY_HSN_CODE || '6204',
+    shippingMode: process.env.DELHIVERY_SHIPPING_MODE === 'Express' ? 'Express' : 'Surface',
+    defaultWeightGrams: Number(process.env.DELHIVERY_DEFAULT_WEIGHT_GRAMS) || 500,
+    defaultLengthCm: Number(process.env.DELHIVERY_DEFAULT_LENGTH_CM) || 30,
+    defaultWidthCm: Number(process.env.DELHIVERY_DEFAULT_WIDTH_CM) || 25,
+    defaultHeightCm: Number(process.env.DELHIVERY_DEFAULT_HEIGHT_CM) || 5,
+    webhookToken: process.env.DELHIVERY_WEBHOOK_TOKEN || '',
+    syncIntervalMinutes: Math.max(0, Number(process.env.DELHIVERY_SYNC_INTERVAL_MINUTES ?? 30) || 0),
+    blockUnserviceable: process.env.DELHIVERY_BLOCK_UNSERVICEABLE !== 'false',
+  },
 };
 if (config.isProduction && config.jwtSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters long');

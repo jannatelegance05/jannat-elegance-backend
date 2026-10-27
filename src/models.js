@@ -324,6 +324,50 @@ const orderItemSchema = new Schema(
 );
 
 /* =========================================================
+   DELHIVERY SHIPMENT
+========================================================= */
+
+const delhiveryScanSchema = new Schema(
+  {
+    status: { type: String, default: '' },
+    statusType: { type: String, default: '' },
+    location: { type: String, default: '' },
+    instructions: { type: String, default: '' },
+    at: { type: Date, default: null },
+  },
+  {
+    _id: false,
+  }
+);
+
+const delhiveryShipmentSchema = new Schema(
+  {
+    waybill: { type: String, default: '', index: true },
+    reference: { type: String, default: '' },
+    attempts: { type: Number, default: 0 },
+    paymentMode: { type: String, default: '' },
+    shippingMode: { type: String, default: '' },
+    weightGrams: { type: Number, default: 0 },
+    status: { type: String, default: '' },
+    statusType: { type: String, default: '' },
+    location: { type: String, default: '' },
+    instructions: { type: String, default: '' },
+    statusAt: { type: Date, default: null },
+    expectedDeliveryDate: { type: Date, default: null },
+    createdAt: { type: Date, default: null },
+    cancelledAt: { type: Date, default: null },
+    lastSyncedAt: { type: Date, default: null },
+    lastError: { type: String, default: '' },
+    pickupRequestedAt: { type: Date, default: null },
+    pickupId: { type: String, default: '' },
+    scans: { type: [delhiveryScanSchema], default: [] },
+  },
+  {
+    _id: false,
+  }
+);
+
+/* =========================================================
    ORDER
 ========================================================= */
 
@@ -484,6 +528,17 @@ const orderSchema = new Schema(
       trackingUrl: {
         type: String,
         default: '',
+      },
+
+      provider: {
+        type: String,
+        enum: ['manual', 'delhivery'],
+        default: 'manual',
+      },
+
+      delhivery: {
+        type: delhiveryShipmentSchema,
+        default: undefined,
       },
     },
 

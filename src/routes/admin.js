@@ -9,11 +9,12 @@ import {
 } from '../models.js';
 import { requireAdmin, requireAuth, requireSameOrigin } from '../auth.js';
 import { sendOrderStatusEmail } from '../email.js';
+import { formatDelhivery } from '../delhivery.js';
 import { applyOrderTransition, isSafeTrackingUrl, LEGACY_STATUSES, normalizeStatus, ORDER_STATUSES } from '../order-status.js';
 
 const router = Router(); const statuses = [...ORDER_STATUSES, ...LEGACY_STATUSES];
 const audit = (adminId, action, entityType, entityId, details) => AdminActivityLog.create({ adminId, action, entityType, entityId, details });
-const formatOrder = (order) => ({ ...order, id: String(order._id), userId: String(order.userId), status: normalizeStatus(order.status), shippingInfo: { courierName: order.shippingInfo?.courierName || '', trackingNumber: order.shippingInfo?.trackingNumber || '', trackingUrl: order.shippingInfo?.trackingUrl || '' }, statusHistory: (order.statusHistory || []).map((entry) => ({ status: entry.status, changedAt: entry.changedAt, changedBy: entry.changedBy })), items: order.items.map((item) => ({ ...item, id: String(item._id), productId: String(item.productId) })) });
+const formatOrder = (order) => ({ ...order, id: String(order._id), userId: String(order.userId), status: normalizeStatus(order.status), shippingInfo: { courierName: order.shippingInfo?.courierName || '', trackingNumber: order.shippingInfo?.trackingNumber || '', trackingUrl: order.shippingInfo?.trackingUrl || '', provider: order.shippingInfo?.provider || 'manual', delhivery: formatDelhivery(order.shippingInfo?.delhivery) }, statusHistory: (order.statusHistory || []).map((entry) => ({ status: entry.status, changedAt: entry.changedAt, changedBy: entry.changedBy })), items: order.items.map((item) => ({ ...item, id: String(item._id), productId: String(item.productId) })) });
 const dayStart = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 router.use(requireAuth, requireAdmin);
 

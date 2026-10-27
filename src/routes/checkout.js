@@ -8,6 +8,8 @@ import { makeOrderItems, markOrderPaid } from "../commerce.js";
 import { requireSameOrigin } from "../auth.js";
 import { sendOrderConfirmationEmail } from "../email.js";
 import { config } from "../config.js";
+import { isDelhiveryConfigured } from "../delhivery.js";
+import { lookupServiceability } from "./shipping.js";
 
 const router = Router();
 
@@ -494,6 +496,34 @@ router.post(
               : null
           )
         );
+      }
+
+      /* ---------------------------------------------------
+         DELHIVERY SERVICEABILITY
+
+         Only an explicit "not serviceable" answer blocks
+         the order; Delhivery outages never stop checkout.
+      --------------------------------------------------- */
+
+      if (
+        isDelhiveryConfigured() &&
+        config.delhivery.blockUnserviceable
+      ) {
+        const serviceability =
+          await lookupServiceability(
+            input.address.pincode
+          ).catch(() => null);
+
+        if (
+          serviceability &&
+          !serviceability.prepaid
+        ) {
+          return response.status(400).json({
+            success: false,
+            error:
+              "Sorry, we do not deliver to this pincode yet. Please use a different delivery address.",
+          });
+        }
       }
 
       /* ---------------------------------------------------
