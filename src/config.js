@@ -30,10 +30,11 @@ export const config = {
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
   delhivery: {
-    apiToken: process.env.DELHIVERY_API_TOKEN || '',
-    environment: process.env.DELHIVERY_ENV === 'production' ? 'production' : 'staging',
-    pickupLocation: process.env.DELHIVERY_PICKUP_LOCATION || '',
-    originPincode: process.env.DELHIVERY_ORIGIN_PINCODE || '',
+    // Dashboard-pasted values often carry stray spaces or capitals.
+    apiToken: (process.env.DELHIVERY_API_TOKEN || '').trim(),
+    environment: ['production', 'prod', 'live'].includes((process.env.DELHIVERY_ENV || '').trim().toLowerCase()) ? 'production' : 'staging',
+    pickupLocation: (process.env.DELHIVERY_PICKUP_LOCATION || '').trim(),
+    originPincode: (process.env.DELHIVERY_ORIGIN_PINCODE || '').trim(),
     sellerName: process.env.DELHIVERY_SELLER_NAME || 'Jannat Elegance',
     sellerAddress: process.env.DELHIVERY_SELLER_ADDRESS || '',
     sellerGstin: process.env.DELHIVERY_SELLER_GSTIN || '',
