@@ -75,7 +75,10 @@ publicShippingRoutes.get('/serviceability', async (request, response, next) => {
     const result = await lookupServiceability(parsed.data);
     response.json({ success: true, checked: true, ...result });
   } catch (error) {
-    if (error instanceof DelhiveryError) return response.json({ success: true, checked: false, serviceable: true, pincode: request.query.pincode });
+    if (error instanceof DelhiveryError) {
+      console.error('Delhivery serviceability check failed:', error.message);
+      return response.json({ success: true, checked: false, serviceable: true, pincode: request.query.pincode });
+    }
     next(error);
   }
 });

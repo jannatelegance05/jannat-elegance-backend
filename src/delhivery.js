@@ -338,6 +338,9 @@ export async function syncActiveShipments({ limit = 200 } = {}) {
 
 export function startTrackingScheduler() {
   const minutes = config.delhivery.syncIntervalMinutes;
+  console.log(isDelhiveryConfigured()
+    ? `Delhivery: ${config.delhivery.environment}, pickup "${config.delhivery.pickupLocation || 'not set'}", sync every ${minutes || 0} min`
+    : 'Delhivery: not configured (DELHIVERY_API_TOKEN missing)');
   if (!isDelhiveryConfigured() || !minutes) return null;
   let running = false;
   const timer = setInterval(async () => {
